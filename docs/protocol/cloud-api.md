@@ -1,3 +1,15 @@
+---
+type: API Reference
+title: Cloud API
+description: "HTTP API of the Teleco cloud: transport, session, response formats, identifiers, every endpoint with its JSON shape, and the polling done by the app."
+resource: https://tmate.telecoautomation.com/
+tags: [teleco, cloud, http, api]
+sources:
+  - id: daisy-app
+    resource: https://play.google.com/store/apps/details?id=com.telecoautomation.daisy
+    title: Daisy Teleco Android app (com.telecoautomation.daisy), static analysis
+---
+
 # Cloud API
 
 ## Transport

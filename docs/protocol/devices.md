@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Devices
+description: "Device models and sub-models with their app and SDK classes, device flags, and the status items reported by devices and by the box."
+tags: [teleco, devices, status]
+sources:
+  - id: daisy-app
+    resource: https://play.google.com/store/apps/details?id=com.telecoautomation.daisy
+    title: Daisy Teleco Android app (com.telecoautomation.daisy), static analysis
+---
+
 # Devices
 
 ## Models

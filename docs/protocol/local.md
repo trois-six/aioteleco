@@ -1,3 +1,14 @@
+---
+type: Protocol Reference
+title: Local channels
+description: "LAN channel to the box on TCP port 400 (payload, obfuscation, diagnostic) and the plain-text setup access point."
+tags: [teleco, lan, tcp, obfuscation, setup]
+sources:
+  - id: daisy-app
+    resource: https://play.google.com/store/apps/details?id=com.telecoautomation.daisy
+    title: Daisy Teleco Android app (com.telecoautomation.daisy), static analysis
+---
+
 # Local channels
 
 There is no BLE, mDNS, UDP or multicast in the app. The box is reached over TCP only:

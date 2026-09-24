@@ -1,3 +1,14 @@
+---
+type: Protocol Reference
+title: Commands
+description: "How a device command is selected from the cloud command list and encoded, delivered and acknowledged, plus scenarios, system (box) commands and timers."
+tags: [teleco, commands, scenarios, timers]
+sources:
+  - id: daisy-app
+    resource: https://play.google.com/store/apps/details?id=com.telecoautomation.daisy
+    title: Daisy Teleco Android app (com.telecoautomation.daisy), static analysis
+---
+
 # Commands
 
 ## Where commands come from

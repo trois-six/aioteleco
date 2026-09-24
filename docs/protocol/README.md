@@ -1,3 +1,14 @@
+---
+type: Overview
+title: Daisy Teleco protocol notes
+description: "How the Daisy Teleco Android app talks to the Teleco cloud and to the Daisy box, with the overall architecture and the validation status of these notes."
+tags: [teleco, daisy, protocol, architecture]
+sources:
+  - id: daisy-app
+    resource: https://play.google.com/store/apps/details?id=com.telecoautomation.daisy
+    title: Daisy Teleco Android app (com.telecoautomation.daisy), static analysis
+---
+
 # Daisy Teleco protocol notes
 
 These notes document how the **Daisy Teleco** Android app (package
