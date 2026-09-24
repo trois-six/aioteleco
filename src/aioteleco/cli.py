@@ -308,8 +308,46 @@ def cover_travel(
     _run(go)
 
 
+def save_travel_times(path: Path, name: str, opening: float, closing: float) -> None:
+    """Write (or replace) ``[travel."<name>"]`` in the TOML config file.
+
+    Other lines are kept as they are; a new file is only readable by its owner, since
+    it may also hold the credentials.
+    """
+    header = f"[travel.{json.dumps(name)}]"
+    block = f"{header}\nopen = {opening:.1f}\nclose = {closing:.1f}\n"
+    lines = path.read_text().splitlines(keepends=True) if path.exists() else []
+    out: list[str] = []
+    skipping = replaced = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("["):
+            skipping = stripped == header
+            if skipping:
+                replaced = True
+                out.append(block)
+                continue
+        if not skipping:
+            out.append(line)
+    if not replaced:
+        if out and not out[-1].endswith("\n"):
+            out.append("\n")
+        if out and out[-1].strip():
+            out.append("\n")
+        out.append(block)
+    text = "".join(out)
+    tomllib.loads(text)  # never write a file the CLI could not read back
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.touch(mode=0o600)
+    path.write_text(text)
+
+
 @cover_app.command("calibrate")
-def cover_calibrate(device: str) -> None:
+def cover_calibrate(
+    device: str,
+    save: Annotated[bool, typer.Option(help="store the times in the config file")] = True,
+) -> None:
     """Measure the full opening and closing times (interactive: watch the cover)."""
 
     async def ask(prompt: str) -> None:
@@ -334,6 +372,9 @@ def cover_calibrate(device: str) -> None:
             {"device": cover.name, "open": round(opening, 1), "close": round(closing, 1)},
             f'[travel."{cover.name}"]\nopen = {opening:.1f}\nclose = {closing:.1f}',
         )
+        if save:
+            save_travel_times(CONFIG_PATH, cover.name, opening, closing)
+            typer.echo(f"saved to {CONFIG_PATH}", err=True)
 
     _run(go)
 
