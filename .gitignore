@@ -164,3 +164,6 @@ re/
 
 # scripts/probe.py output (review before copying to tests/fixtures)
 probe-output/
+
+# Claude Code agent worktrees
+.claude/worktrees/
