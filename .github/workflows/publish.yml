@@ -1,29 +1,57 @@
-name: Publish Package
+# Release pipeline: release-please maintains a release PR from the Conventional
+# Commits on main; merging it tags vX.Y.Z and creates the GitHub release, then
+# this same run checks, builds and publishes to PyPI.
+#
+# Publishing lives here rather than in a workflow triggered by `release`,
+# because a release created with the default GITHUB_TOKEN does not trigger other
+# workflows. The file keeps its name (publish.yml): the PyPI trusted publisher
+# is bound to it and to the `pypi` environment.
+name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
   # one release at a time, never cancel a publish half-way
-  group: publish
+  group: release
   cancel-in-progress: false
 
 jobs:
+  release-please:
+    name: Release PR / GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # tags, releases, release PR branch
+      issues: write # release labels
+      pull-requests: write # release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   checks:
     name: Lint, type-check and test
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
     uses: $/.github/workflows/ci.yml
 
   build:
     name: Build distributions
-    needs: checks
+    needs: [release-please, checks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
