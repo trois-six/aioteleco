@@ -1,6 +1,7 @@
 # aioteleco
 
 [![PyPI](https://img.shields.io/pypi/v/aioteleco)](https://pypi.org/project/aioteleco/)
+[![Docs](https://img.shields.io/badge/docs-trois--six.github.io%2Faioteleco-blue)](https://trois-six.github.io/aioteleco/)
 
 Unofficial async Python SDK and command-line tool for **Teleco Automation** boxes, the
 home-automation box behind the *Daisy Teleco* app and the apps Teleco builds for other
@@ -16,6 +17,9 @@ over the LAN**.
 > the brands listed below. It is based on the analysis of the Android app for
 > interoperability. Brand names are trademarks of their respective owners. The devices
 > it drives are motorised: test with the equipment in sight.
+
+Full documentation (getting started, API reference, protocol notes):
+<https://trois-six.github.io/aioteleco/>
 
 ## Supported apps / brands
 
