@@ -86,19 +86,21 @@ import asyncio
 import aiohttp
 from aioteleco import TelecoHub, Slats
 
+
 async def main() -> None:
     async with aiohttp.ClientSession() as http:
         hub = TelecoHub(http, "me@example.com", "secret")  # transport="auto" by default
         await hub.connect()
-        inst = hub.installation()          # first box of the account
-        data = await hub.load(inst)        # rooms, devices, scenarios
+        inst = hub.installation()  # first box of the account
+        data = await hub.load(inst)  # rooms, devices, scenarios
         for device in data.devices.values():
             await device.refresh()
             print(device, device.status)
         slats = next(d for d in data.devices.values() if isinstance(d, Slats))
         result = await slats.set_position(66)
-        print(result.channel)              # "local" or "cloud"
+        print(result.channel)  # "local" or "cloud"
         await hub.close()
+
 
 asyncio.run(main())
 ```
