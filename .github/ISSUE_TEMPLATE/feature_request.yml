@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest a new feature, device support or an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The use case, and what is missing or awkward today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How it could look in the SDK or the CLI.
+  - type: textarea
+    id: app-behaviour
+    attributes:
+      label: How the official app does it
+      description: >-
+        If the brand app already offers this, which app, which screen and which
+        devices. Never paste credentials, installation codes or addresses.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

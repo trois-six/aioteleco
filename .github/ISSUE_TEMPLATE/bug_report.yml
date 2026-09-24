@@ -1,0 +1,99 @@
+name: Bug report
+description: Something does not work with your Teleco box, a device or the SDK.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! **Never paste your email, password, session id,
+        installation code or box address.** Security issues go to a
+        [private advisory](https://github.com/trois-six/aioteleco/security/advisories/new),
+        not here.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: CLI command or minimal code that shows the problem.
+      render: shell
+  - type: dropdown
+    id: brand-app
+    attributes:
+      label: Brand app
+      description: The app your account was created with.
+      options:
+        - Daisy Teleco
+        - Biossun
+        - Brustor
+        - Durmi
+        - Gibus
+        - Hardtop
+        - Kettal
+        - Pratic
+        - Wise
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: devices
+    attributes:
+      label: Device models
+      description: >-
+        The devices involved, with their model as shown by `teleco devices` (or
+        `model`, `sub_model` and `family` from `teleco --json devices`), and what they
+        are (pergola slats, awning, RGB light…).
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      description: How commands were sent (`--transport` / `transport=`).
+      options:
+        - auto (default)
+        - cloud
+        - local
+    validations:
+      required: true
+  - type: input
+    id: sdk-version
+    attributes:
+      label: aioteleco version
+      description: "`pip show aioteleco` or `python -c 'import aioteleco; print(aioteleco.__version__)'`"
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version and OS
+      placeholder: Python 3.13 on Linux
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: "`teleco diagnose` output"
+      description: >-
+        Run `teleco diagnose > teleco-diagnostics.json` and attach the file or paste
+        it here. It is anonymised; review it before posting anyway.
+      render: json
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug logs
+      description: >-
+        Output of the failing command with `--debug` (CLI) or `logging.DEBUG` on
+        `aioteleco` (library). Redact anything personal.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed credentials, installation codes and addresses from everything above.
+          required: true
