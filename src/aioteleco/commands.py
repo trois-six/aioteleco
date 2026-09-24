@@ -204,12 +204,16 @@ def feed_post(
     commands: list[WireCommand],
     *,
     scenario_id: int = 0,
+    is_scenario: bool | None = None,
 ) -> JsonDict:
-    """Body of ``tmate20/feedthecommands`` (without ``idSession``)."""
+    """Body of ``tmate20/feedthecommands`` (without ``idSession``).
+
+    ``is_scenario`` defaults to ``scenario_id != 0``; the board sync forces it on.
+    """
     return {
         "idInstallation": inst_code,
         "idScenario": scenario_id,
-        "isScenario": scenario_id != 0,
+        "isScenario": scenario_id != 0 if is_scenario is None else is_scenario,
         "commandsList": [c.to_cloud() for c in commands],
     }
 

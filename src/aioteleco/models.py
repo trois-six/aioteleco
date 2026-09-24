@@ -8,6 +8,7 @@ re-post whole objects, e.g. room-setup) can echo unknown fields back unchanged.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -28,6 +29,10 @@ def _int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _version(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", value))
 
 
 def _str(value: Any) -> str:
@@ -61,6 +66,17 @@ class Installation:
             installation_order=_int(data.get("installationOrder")),
             raw=data,
         )
+
+    @property
+    def hardware_version(self) -> str:
+        """``Install#getHardwareVersion``: ``workdays`` when it looks like x.y.z."""
+        return self.workdays if re.fullmatch(r"\d+\.\d+\.\d+", self.workdays) else ""
+
+    def firmware_at_least(self, version: str) -> bool:
+        """``Install#isEqualOrGreaterThan``: hardware 2.0.0 and later always qualify."""
+        if _version(self.hardware_version) >= (2, 0, 0):
+            return True
+        return _version(self.firmware_version) >= _version(version)
 
 
 @dataclass(slots=True)
@@ -299,6 +315,7 @@ class Scenario:
     order: int
     id_installation_room: int
     steps: list[ScenarioStep]
+    id_installation_device: int  # the scenario's own device (remote pairing, status)
     raw: JsonDict = field(repr=False)
 
     @classmethod
@@ -309,6 +326,7 @@ class Scenario:
             icon=_int(data.get("icon")),
             order=_int(data.get("scenarioOrder")),
             id_installation_room=_int(data.get("idInstallationRoom")),
+            id_installation_device=_int(data.get("idInstallationDevice")),
             steps=[ScenarioStep.from_json(c) for c in data.get("commandList") or []],
             raw=data,
         )

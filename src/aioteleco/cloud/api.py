@@ -9,7 +9,7 @@ from typing import Any
 from ..commands import WireCommand, feed_post
 from ..const import ACK_ACCEPTED, ACK_POLL_INTERVAL, ACK_PROCESSED, Endpoint
 from ..exceptions import TelecoAckTimeoutError, TelecoCommandError
-from ..models import Installation, Room, Scenario, ScenarioStep, StatusItem, Timer
+from ..models import Command, Installation, Room, Scenario, ScenarioStep, StatusItem, Timer
 from .client import CloudClient, SessionFields, TmateResponse
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,6 +31,35 @@ class CloudApi:
     async def reset_password(self, email: str) -> None:
         await self.client.call(Endpoint.RESET_PASSWORD, {"email": email}, fields=SessionFields.NONE)
 
+    async def register(
+        self,
+        email: str,
+        password: str,
+        *,
+        firstname: str,
+        lastname: str,
+        advertising: bool = False,
+        app: str = "DAISY",
+    ) -> Any:
+        """Create an account (account-registration); the e-mail must then be confirmed.
+
+        ``app`` is the brand app's id (its build flavor in upper case: ``DAISY``,
+        ``BIOSSUN``, ``GIBUS``...).
+        """
+        body = {
+            "idApp": app,
+            "email": email,
+            "pwd": password,
+            "firstname": firstname,
+            "lastname": lastname,
+            "accountSource": "APP",
+            "flgAdvert": "S" if advertising else "N",
+            "flgBanner": "S",
+        }
+        return await self.client.call(
+            Endpoint.ACCOUNT_REGISTRATION, body, fields=SessionFields.NONE
+        )
+
     # -- installations ---------------------------------------------------------
 
     async def installations(self) -> list[Installation]:
@@ -47,6 +76,35 @@ class CloudApi:
         if data.get("idInstallation") is None:
             return False
         return bool(data.get("nodeActive"))
+
+    async def pair_installation(
+        self,
+        inst_code: str,
+        description: str,
+        *,
+        order: int = 0,
+        active_timer: bool = True,
+        workdays: str = "",
+        firmware_version: str = "",
+    ) -> Any:
+        """Add a box to the account by its code (account-installation-pair)."""
+        body = {
+            "instCode": inst_code,
+            "instDescription": description,
+            "installationOrder": order,
+            "activetimer": "S" if active_timer else "N",
+            "workdays": workdays,
+            "firmwareVersion": firmware_version,
+        }
+        result = await self.client.call(Endpoint.INSTALLATION_PAIR, body)
+        return (result or {}).get("installationPair", result)
+
+    async def unpair_installation(self, installation: Installation) -> Any:
+        """Remove the box from the account (account-installation-unpair)."""
+        result = await self.client.call(
+            Endpoint.INSTALLATION_UNPAIR, {"idInstallation": installation.id_installation}
+        )
+        return (result or {}).get("installationUnpair", result)
 
     async def rename_installation(self, installation: Installation, description: str) -> None:
         body = {
@@ -74,6 +132,38 @@ class CloudApi:
             Endpoint.ROOM_SETUP, room.to_setup_json(installation.id_installation)
         )
         return Room.from_json(result or {})
+
+    async def delete_room(self, installation: Installation, id_room: int) -> None:
+        await self.client.call(
+            Endpoint.ROOM_DELETE,
+            {"idInstallation": installation.id_installation, "idInstallationRoom": id_room},
+        )
+
+    async def device_commands(
+        self, installation: Installation, id_installation_device: int
+    ) -> list[Command]:
+        """command-device-list: the commands of one device."""
+        result = await self.client.call(
+            Endpoint.COMMAND_DEVICE_LIST,
+            {
+                "idInstallation": installation.id_installation,
+                "idInstallationDevice": id_installation_device,
+            },
+        )
+        return [Command.from_json(c) for c in (result or {}).get("commandList") or []]
+
+    async def scenario_commands(
+        self, installation: Installation, id_scenario: int
+    ) -> list[Command]:
+        """command-scenario-list: the commands of one scenario."""
+        result = await self.client.call(
+            Endpoint.COMMAND_SCENARIO_LIST,
+            {
+                "idInstallation": installation.id_installation,
+                "idInstallationScenario": id_scenario,
+            },
+        )
+        return [Command.from_json(c) for c in (result or {}).get("commandList") or []]
 
     async def device_status(
         self, installation: Installation, id_installation_device: int
@@ -156,9 +246,16 @@ class CloudApi:
     # -- commands ---------------------------------------------------------------
 
     async def feed_commands(
-        self, installation: Installation, commands: list[WireCommand], *, scenario_id: int = 0
+        self,
+        installation: Installation,
+        commands: list[WireCommand],
+        *,
+        scenario_id: int = 0,
+        is_scenario: bool | None = None,
     ) -> TmateResponse:
-        body = feed_post(installation.inst_code, commands, scenario_id=scenario_id)
+        body = feed_post(
+            installation.inst_code, commands, scenario_id=scenario_id, is_scenario=is_scenario
+        )
         response = await self.client.call_tmate(Endpoint.FEED_THE_COMMANDS, body)
         if not response.ok:
             raise TelecoCommandError(response.message_text or "Command rejected by the cloud")
@@ -176,6 +273,7 @@ class CloudApi:
         commands: list[WireCommand],
         *,
         scenario_id: int = 0,
+        is_scenario: bool | None = None,
         ack_timeout: float = 15.0,
         until: tuple[str, ...] = (ACK_PROCESSED, ACK_ACCEPTED),
     ) -> TmateResponse:
@@ -183,7 +281,9 @@ class CloudApi:
 
         Device screens stop on ``PROC``; timer/schedule flows wait for ``ACK``.
         """
-        response = await self.feed_commands(installation, commands, scenario_id=scenario_id)
+        response = await self.feed_commands(
+            installation, commands, scenario_id=scenario_id, is_scenario=is_scenario
+        )
         reference = response.action_reference
         if reference is None:
             return response  # the app treats a missing reference as "done"

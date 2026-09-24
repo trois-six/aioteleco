@@ -13,7 +13,7 @@ from aioteleco.devices import ColorLight, Cover, Slats
 from aioteleco.exceptions import TelecoCommandError, TelecoLocalError, TelecoUnsupportedError
 from aioteleco.hub import InstallationData, TelecoHub
 from aioteleco.local.client import LocalClient
-from aioteleco.models import Timer
+from aioteleco.models import ScenarioStep, Timer
 from aioteleco.transport import Channel, TransportMode
 from conftest import FakeBox, FakeCloud, HubFactory, JsonDict, envelope, tmate
 
@@ -444,3 +444,122 @@ async def test_delete_timer_keeps_cloud_list_when_box_refuses(
     with pytest.raises(TelecoCommandError):
         await hub.delete_timer(slats, 5001)
     assert cloud.count(Endpoint.TIMER_DEVICE_SETUP) == 0
+
+
+# --- box configuration, scenarios, remotes --------------------------------------------
+
+
+def feeds(cloud: FakeCloud) -> list[JsonDict]:
+    return [c for body in cloud.bodies(Endpoint.FEED_THE_COMMANDS) for c in body["commandsList"]]
+
+
+async def test_save_scenario_pushes_it_to_the_box(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.handlers[Endpoint.SCENARIO_SETUP] = envelope({"idInstallationScenario": 7002})
+    cloud.default_ack = tmate("ACK")
+    steps = [ScenarioStep(3002, 0, "STOP")]
+    saved = await hub.save_scenario(data.installation, description="Stop", steps=steps)
+    assert saved.id_installation_scenario == 7002
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["commandParam"]) == (
+        "UP_SCEN",
+        "7002N01 01C070000005f000007d1",
+    )
+    order = [ep for ep, _ in cloud.calls if ep is not Endpoint.GET_ACK_COMMAND]
+    assert order[-2:] == [Endpoint.SCENARIO_SETUP, Endpoint.FEED_THE_COMMANDS]
+
+
+async def test_save_empty_scenario_deletes_it_from_the_box(
+    hub: TelecoHub, cloud: FakeCloud
+) -> None:
+    data = await loaded(hub)
+    cloud.handlers[Endpoint.SCENARIO_SETUP] = envelope({"idInstallationScenario": 7001})
+    cloud.default_ack = tmate("ACK")
+    await hub.save_scenario(
+        data.installation, description="Evening", steps=[], id_installation_scenario=7001
+    )
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["commandParam"]) == ("DEL_SCEN", "7001")
+
+
+async def test_delete_scenario(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.handlers[Endpoint.SCENARIO_DELETE] = envelope()
+    cloud.default_ack = tmate("ACK")
+    await hub.delete_scenario(data.installation, data.scenarios[0])
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["commandParam"]) == ("DEL_SCEN", "7001")
+    assert cloud.bodies(Endpoint.SCENARIO_DELETE)[0]["idInstallationScenario"] == 7001
+
+
+async def test_rename_installation(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.handlers[Endpoint.INSTALLATION_SETUP] = envelope({})
+    cloud.default_ack = tmate("ACK")
+    await hub.rename_installation(data.installation, "Villa")
+    assert cloud.bodies(Endpoint.INSTALLATION_SETUP)[0]["instDescription"] == "Villa"
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["commandParam"]) == ("UP_INST_NAME", "Villa")
+    assert data.installation.description == "Villa"
+
+
+async def test_query_box(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.default_ack = tmate("ACK")
+    await hub.query_box(data.installation, "GET_TIME")
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["idInstallationDevice"]) == ("GET_TIME", 789)
+    with pytest.raises(ValueError, match="SET_TIME"):
+        await hub.query_box(data.installation, "SET_TIME")
+
+
+async def test_sync_box(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.default_ack = tmate("ACK")
+    await hub.sync_box(data.installation)
+    (body,) = cloud.bodies(Endpoint.FEED_THE_COMMANDS)
+    assert body["isScenario"] is True
+    actions = [c["commandAction"] for c in body["commandsList"]]
+    assert actions[:3] == ["SYNC_BOARD", "UP_INST_NAME", "UP_SCHED"]
+    assert actions.count("UP_DEV") == len(data.devices)
+    assert actions.count("UP_TIMERS") == 1  # the slats timer; no scenario has a remote
+    assert actions[-1] == "END_SYNC"
+
+
+async def test_delete_room(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.handlers[Endpoint.ROOM_DELETE] = envelope()
+    cloud.default_ack = tmate("ACK")
+    await hub.delete_room(data.installation, data.rooms[0])
+    assert cloud.bodies(Endpoint.ROOM_DELETE)[0]["idInstallationRoom"] == 1001
+    actions = [(c["commandAction"], c["commandParam"]) for c in feeds(cloud)]
+    # the slats timer 5001 leaves the box; "Evening" loses every step -> DEL_SCEN
+    assert actions == [("DEL_TIM", "00001389"), ("DEL_SCEN", "7001")]
+
+
+async def test_disable_timer_removes_it_from_the_box(hub: TelecoHub, cloud: FakeCloud) -> None:
+    slats = slats_of(await loaded(hub))
+    cloud.handlers[Endpoint.TIMER_DEVICE_SETUP] = timer_list
+    cloud.default_ack = tmate("ACK")
+    (timer,) = slats.info.timers
+    timers = await hub.set_timer_active(slats, timer, False)
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["commandParam"]) == ("DEL_TIM", "00001389")
+    assert timers[0].active is False
+
+
+async def test_pair_remote(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    cloud.default_ack = tmate("ACK")
+    scenario = data.scenarios[0]
+    scenario.id_installation_device = 9001
+    await hub.pair_remote(data.installation, scenario)
+    await hub.unpair_remote(data.installation, scenario)
+    first, second = feeds(cloud)
+    assert (first["commandAction"], first["commandId"], first["idInstallationDevice"]) == (
+        "PAIR_TX",
+        127,
+        9001,
+    )
+    assert first["commandParam"].startswith("7001N02 ")
+    assert (second["commandAction"], second["commandParam"]) == ("UNPAIR_TX", "7001")
