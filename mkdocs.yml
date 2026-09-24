@@ -1,0 +1,108 @@
+site_name: aioteleco
+site_description: Async Python SDK and CLI for Teleco Automation boxes (Daisy and the other Teleco brand apps)
+site_url: https://trois-six.github.io/aioteleco/
+repo_url: https://github.com/trois-six/aioteleco
+repo_name: trois-six/aioteleco
+edit_uri: edit/main/docs/
+copyright: MIT License. Not affiliated with Teleco Automation.
+
+strict: true
+
+# docs/protocol/ is an OKF bundle: it holds both index.md (the bundle index) and
+# README.md (the overview note), which MkDocs would both map to protocol/index.html.
+# README.md is excluded from the scan here and published at protocol/overview/ by the
+# hook, so the bundle files are used as-is.
+exclude_docs: |
+  /protocol/README.md
+hooks:
+  - scripts/mkdocs_hooks.py
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - API reference:
+      - reference/index.md
+      - TelecoHub: reference/hub.md
+      - Devices: reference/devices.md
+      - Models: reference/models.md
+      - Exceptions: reference/exceptions.md
+      - Transport: reference/transport.md
+      - Commands, system and timers: reference/commands.md
+      - Cloud API: reference/cloud.md
+      - Local channel: reference/local.md
+      - Diagnostics and constants: reference/misc.md
+  - Protocol notes:
+      - protocol/index.md
+      - Introduction: protocol/README.md
+      - Cloud API: protocol/cloud-api.md
+      - Commands: protocol/commands.md
+      - Devices: protocol/devices.md
+      - Local channels: protocol/local.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.aiohttp.org/en/stable/objects.inv
+          options:
+            docstring_style: sphinx
+            extensions:
+              - scripts/griffe_markdown.py:MarkdownDocstrings
+            filters: ["!^_"]
+            heading_level: 2
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_if_no_docstring: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            show_source: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
