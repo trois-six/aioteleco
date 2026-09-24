@@ -161,3 +161,6 @@ cython_debug/
 
 # Reverse engineering workspace (APK, decompiled sources) - never commit
 re/
+
+# scripts/probe.py output (review before copying to tests/fixtures)
+probe-output/
