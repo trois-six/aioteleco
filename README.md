@@ -1,21 +1,48 @@
 # aioteleco
 
-Unofficial async Python SDK and command-line tool for **Teleco Automation Daisy** boxes:
-pergolas (slats, retractable roofs), awnings, screens, shutters, lights (on/off, dimmers,
-RGB, tunable white), heaters and more.
+[![PyPI](https://img.shields.io/pypi/v/aioteleco)](https://pypi.org/project/aioteleco/)
 
-It talks to the Teleco cloud like the official *Daisy Teleco* app does and, when the box
-is reachable on your network, sends commands **directly to the box over the LAN**.
+Unofficial async Python SDK and command-line tool for **Teleco Automation** boxes, the
+home-automation box behind the *Daisy Teleco* app and the apps Teleco builds for other
+brands (Biossun, Brustor, Gibus, Pratic, Kettal, Wise…). It drives pergolas (slats,
+retractable roofs), awnings, screens, shutters, lights (on/off, dimmers, RGB, tunable
+white), heaters and more.
 
-> ⚠️ This project is not affiliated with Teleco Automation. It is based on the
-> analysis of the Android app for interoperability. The devices it drives are
-> motorised: test with the equipment in sight.
+It talks to the Teleco cloud (`tmate.telecoautomation.com`) like the official apps do
+and, when the box is reachable on your network, sends commands **directly to the box
+over the LAN**.
+
+> ⚠️ This project is not affiliated with, nor endorsed by, Teleco Automation or any of
+> the brands listed below. It is based on the analysis of the Android app for
+> interoperability. Brand names are trademarks of their respective owners. The devices
+> it drives are motorised: test with the equipment in sight.
+
+## Supported apps / brands
+
+Teleco builds one app per brand from a single codebase. Every brand app that uses a
+cloud account talks to the same Teleco cloud and the same box, so an account created in
+any of them works with aioteleco:
+
+* Daisy Teleco
+* Biossun
+* Brustor
+* Durmi
+* Gibus
+* Hardtop
+* Kettal
+* Pratic
+* Wise
+
+Each app enables its own subset of device models and a few brand-specific tweaks; the
+SDK follows the Daisy app's behaviour. Reports are welcome (see `teleco diagnose`).
+
+The same codebase also builds "direct" apps (Wi-Fi Products, Wise Direct) that work
+without a cloud account; they are not covered.
 
 ## Status
 
-`1.0.0a1`: the protocol is fully mapped (see [docs/protocol](docs/protocol/README.md))
-and implemented, but not yet validated on every device type. Reports from real
-installations are welcome (see `teleco diagnose`).
+Alpha: the protocol is fully mapped (see [docs/protocol](docs/protocol/README.md)) and
+implemented; the API may still change.
 
 ## Install
 
@@ -26,13 +53,15 @@ pip install aioteleco          # SDK only
 
 ## Command line
 
-Credentials: `--email/--password`, `TELECO_EMAIL`/`TELECO_PASSWORD`, or
-`~/.config/aioteleco/config.toml`:
+Use the email and password of your account in the brand app. Credentials:
+`--email/--password`, `TELECO_EMAIL`/`TELECO_PASSWORD`, or
+`~/.config/aioteleco/config.toml` (the box LAN address can also be given with
+`--local-ip` or `TELECO_LOCAL_IP`):
 
 ```toml
 email = "me@example.com"
 password = "…"
-# local_ip = "192.168.1.50"   # optional: box address on your LAN
+# local_ip = "192.0.2.10"   # optional: box address on your LAN
 ```
 
 ```bash
