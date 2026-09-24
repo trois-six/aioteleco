@@ -77,25 +77,25 @@ Request base types: `SessionBase {idSession}` ⊂ `SessionCloud {+idAccount}` �
 |---|---|---|---|
 | `account-login` | `User` (see above) | `{idSession, idAccount}` | `CloudClient.login` |
 | `account-logout` | `{idSession}` | — | `CloudClient.logout` |
-| `account-registration` | `{email, pwd, idApp:"DAISY", firstname, lastname, accountSource:"APP", flgAdvert, flgBanner:"S"}` | `ConfirmationUser` | not exposed |
+| `account-registration` | `{email, pwd, idApp:"<FLAVOR>" (e.g. "DAISY"), firstname, lastname, accountSource:"APP", flgAdvert, flgBanner:"S"}` | `ConfirmationUser` | `CloudApi.register` |
 | `change-password` | `{idSession, idAccount, pwdOld, pwdNew}` | — | `CloudApi.change_password` |
 | `reset-password` | `{email}` | — | `CloudApi.reset_password` |
 | `account-installation-list` | `SessionCloud` | `{idAccount, installationList: [Install]}` | `CloudApi.installations` |
-| `account-installation-pair` | `{…session, instCode, instDescription, installationOrder, activetimer, weekend, workdays, firmwareVersion}` | `InstallationPair` | not exposed (sharing) |
-| `account-installation-unpair` | `InstallationPost` | `InstallationUnpair` | not exposed |
+| `account-installation-pair` | `{…session, instCode, instDescription, installationOrder, activetimer, weekend, workdays, firmwareVersion}` | `InstallationPair` | `CloudApi.pair_installation` |
+| `account-installation-unpair` | `InstallationPost` | `InstallationUnpair` | `CloudApi.unpair_installation` |
 | `/teleco/services/installation-setup` | `InstallationPost` + `instCode, instDescription, installationOrder, activetimer, workdays, firmwareVersion` | `InstallationCloud` | `CloudApi.rename_installation` |
 | `room-list` | `InstallationPost` | `{idAccount, idInstallation, roomList: [Room]}` | `CloudApi.rooms(full=False)` |
 | `room-configuration-list` | `InstallationPost` | same, devices include `deviceCommandList` and `deviceTimersList` | `CloudApi.rooms()` |
 | `room-setup` | `RoomCloud` (**the whole room with all its devices**) | `RoomSetup` | `CloudApi.save_room` |
-| `room-delete` | `RoomPost` | — | not exposed |
+| `room-delete` | `RoomPost` | — | `CloudApi.delete_room`, `TelecoHub.delete_room` |
 | `scenario-list` | `InstallationPost` | `{scenarioList: [Scenario]}` | `CloudApi.scenarios` |
 | `scenario-setup` | `ScenarioPost` + `icon, idInstallationRoom, scenarioDescription, scenarioOrder, commandList: [{idInstallationDeviceCommand, commandIndex, commandParam}]` | `ScenarioCloud` | `CloudApi.save_scenario` |
 | `scenario-delete` | `ScenarioPost` | — | `CloudApi.delete_scenario` |
-| `command-device-list` | `DevicePost` | `{commandList: [CommandCloud], …}` | — |
-| `command-scenario-list` | `ScenarioPost` | same | — |
+| `command-device-list` | `DevicePost` | `{commandList: [CommandCloud], …}` | `CloudApi.device_commands` |
+| `command-scenario-list` | `ScenarioPost` | same | `CloudApi.scenario_commands` |
 | `command-device-setup` | `DevicePost` | declared, never called by the app | — |
 | `status-device-list` | `DevicePost` | `{statusitemList: [StatusItem]}` | `CloudApi.device_status` |
-| `timer-device-list/` | `DevicePost` | `TimerSetup {timerList}` | `CloudApi.timers` |
+| `timer-device-list/` | `DevicePost` | `TimerSetup {timerList}` (has been seen empty for a device with timers) | `CloudApi.timers` |
 | `timer-device-setup/` | `DevicePost` + `timerList` (**complete list**; a missing timer is deleted) | `TimerSetup` | `CloudApi.save_timers` |
 | `tmate20/feedthecommands/` | `{idSession, idInstallation: instCode, idScenario, isScenario, commandsList: [CommandCloud]}` | tmate format | `CloudApi.feed_commands` |
 | `tmate20/getackcommand/` | `{idSession, idInstallation: instCode, id: ActionReference}` | tmate format | `CloudApi.get_ack` |
@@ -133,9 +133,12 @@ Paths with a trailing `/` must keep it.
 
 Notes:
 * Yes/no flags are the strings `"S"` / `"N"`.
-* The app switches on `statusItem`; `statusitemCode` is never read by the app (the old
-  version of this library used it successfully, so both probably hold the same value —
-  not yet verified).
+* The app switches on `statusItem`; `statusitemCode` is never read by the app. Real
+  responses carry the same value in both.
+* Commands returned by `room-configuration-list` and `command-device-list` also carry
+  `commandCode`, a readable name the app does not use: `OPEN`, `STOP`, `POWERON`,
+  `LEVEL25`…`LEVEL100` for `LEV1`…`LEV4`, `LEVEL_CUST` for the free level (`commandParam`
+  `"0"`).
 * `Install.workdays` is also read by the app as the box **hardware version** when it
   looks like `x.y.z` (`Install#getHardwareVersion`); treat it as opaque and echo it back.
 * Saving a device (label, favorite, order) posts **the whole room** through `room-setup`

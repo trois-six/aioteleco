@@ -118,22 +118,67 @@ Built by `CommandDao#commandTo*`: `commandId = 122`, `idInstallationDevice` = th
 device id, `deviceCode = "0"` unless noted, `lowlevelCommand = ""`. Always sent through
 the cloud.
 
-| Action | Param | Notes |
-|---|---|---|
-| `GET_FEEDBACK` | box short code of the device (`PER`, `PEG`…) | `deviceCode` = device index |
-| `UP_DEV` | `Feedback: S\|N Timers: S` | `lowlevelCommand` = box device id |
-| `UP_SCHED` | `Timers: S\|N` | master switch for timers |
-| `UP_TIMERS` | see below | `deviceCode` = device index |
-| `DEL_TIM`, `DEL_SCEN`, `UP_SCEN`, `UP_INST_NAME` | value | |
-| `GET_DIAGNOSTIC`, `TEST_SCAN`, `SYNC_BOARD`, `END_SYNC`, `GET_TIME`, `GET_SIGNAL`, `GET_VERSION`, `GET_INFO` | — | results appear as box status items |
-| `SET_TIME` | value | |
-| `SET_WIFI` | `SSID: x PASS: y` | **not exposed by the SDK** |
-| `AP_CHANNEL_CMD` | `00R` read, `20W` / `06W` write | write **not exposed** |
-| `MEMORY` | `ADDR: %s NB: %sR` | **not exposed** |
-| `UPDATE_BOARD` | firmware URL on S3 | **not exposed** (flashes the box) |
+| Action | Param | Notes | SDK (`TelecoHub`) |
+|---|---|---|---|
+| `GET_FEEDBACK` | box short code of the device model (`PER`, `PEG`…, `CommandDao#getBoardDeviceCodeName`) | `idInstallationDevice` = the device, `deviceCode` = device index | `request_feedback` |
+| `UP_DEV` | `Feedback: S\|N Timers: S` | `idInstallationDevice` = the device, `deviceCode` = device index, `lowlevelCommand` = box device id; firmware ≥ 1.3.3 only | `update_device` |
+| `UP_SCHED` | `Timers: S\|N` | master switch for timers | `set_timers_enabled` |
+| `UP_TIMERS` | see [Timers](#timers) | `deviceCode` = device index | `save_timer`, `set_timer_active` |
+| `DEL_TIM` | timer id, 8 hex digits | | `delete_timer`, `set_timer_active` |
+| `UP_SCEN` | scenario string, see [Scenarios on the box](#scenarios-on-the-box) | | `save_scenario` |
+| `DEL_SCEN` | scenario id (decimal) | | `delete_scenario` |
+| `UP_INST_NAME` | installation name | | `rename_installation` |
+| `GET_TIME`, `GET_SIGNAL`, `GET_VERSION`, `GET_INFO`, `GET_DIAGNOSTIC` | — | the box refreshes its status items (`CURRENT_TIME`, `SIGNAL`, `DIAGNOSTIC`…); the ack is `ACK` | `query_box` |
+| `TEST_SCAN` | — | | `test_scan` |
+| `SYNC_BOARD`, `END_SYNC` | — | frame a full re-send, see [Board sync](#board-sync) | `sync_box` |
+| `SET_TIME` | value (no caller in the app) | | `set_box_time` |
+| `SET_WIFI` | `SSID: x PASS: y` | | `set_wifi` |
+| `AP_CHANNEL_CMD` | `00R` read; write `20W` (static) or `06W` | | `read_ap_channel`, `set_ap_channel` |
+| `MEMORY` | `ADDR: %s NB: %sR` | debug screen | `read_memory` |
+| `UPDATE_BOARD` | firmware URL | flashes the box | `update_firmware` |
 
-Remote pairing (`CommandDao#commandToTx`): `PAIR_BUTTON` 108, `UNPAIR_BUTTON` 109,
-`PAIR_TX` 127, `UNPAIR_TX` 128, `RESET_TX` 129. Not exposed.
+Any action can also be sent with `TelecoHub.send_system(installation, action, param)`.
+
+### Remote controls
+
+Remote pairing (`CommandDao#commandToTx`) uses its own `commandId` and targets the
+**scenario's** `idInstallationDevice` (every scenario has one), `deviceCode = "0"`:
+
+| Action | `commandId` | Param | SDK (`TelecoHub`) |
+|---|---|---|---|
+| `PAIR_TX` | 127 | scenario string | `pair_remote` |
+| `UNPAIR_TX` | 128 | scenario id | `unpair_remote` |
+| `RESET_TX` | 129 | scenario id | `reset_remotes` |
+| `PAIR_BUTTON`, `UNPAIR_BUTTON` | 108, 109 | (no caller in the app) | `send_remote_command` |
+
+A scenario has a remote bound when its own device reports `TX_NUM > 0` or
+`PAIRING_STATUS == "ON"` (`SetupScenariosListActivity#handleStatusDeviceList`).
+
+## Scenarios on the box
+
+After `scenario-setup` succeeds, the app sends `UP_SCEN` with the scenario string, or
+`DEL_SCEN` when the scenario has no step left (`SetupScenarioActivity`). Deleting a
+scenario sends `DEL_SCEN` after `scenario-delete`. Scenario string
+(`ScenarioDao#toScenarioString`):
+
+```
+<scenario id>N<step count, 2 digits>( <device index, 2 digits><V><command model, hex><device id, 8 hex>)*
+```
+
+`V` is as for timers, except that an integer is always `L` + hex (at least 2 digits) +
+`000000`. Example: `7001N02 01C0200000062000007d1 03R50ff800089000007d3`.
+
+## Board sync
+
+`DaisyApplication#syncBoard` re-sends the whole configuration as `isScenario: true`
+feeds of at most 30 commands, each waiting for `ACK`: `SYNC_BOARD`, `UP_INST_NAME`,
+`UP_SCHED`, then `UP_DEV` per device (firmware ≥ 1.3.3), `UP_SCEN` per scenario bound
+to a remote, `UP_TIMERS` per timer, and `END_SYNC`.
+
+## Rooms
+
+Deleting a room (`SetupRoomsListActivity`): `room-delete`, then `DEL_TIM` for every
+timer of its devices, then `UP_SCEN` (or `DEL_SCEN`) for the scenarios that used them.
 
 ## Timers
 
@@ -145,6 +190,14 @@ A timer is saved in two steps (`SetupDeviceTimersActivity`, `DaisyApplication#up
 A new timer is first created with `idInstallationDeviceTimer: 0` through
 `timer-device-setup/` to obtain its id. Disabling a timer on firmware ≥ 1.3.3 sends
 `DEL_TIM` instead of `UP_TIMERS`.
+
+Deleting a timer (`SetupTimerListActivity#deleteTimer`): send `DEL_TIM` (timer id on 8
+hex digits, `DaisyBaseActivity#delTimerString`), wait for `ACK`, then post the device's
+timer list without it to `timer-device-setup/`. The box runs timers on its own clock,
+which is local time (`CURRENT_TIME`), so `timerDate` is local time too.
+
+`timer-device-list/` has been seen returning an empty `timerList` for a device that
+has timers; `room-configuration-list` (`deviceTimersList`) is the reliable source.
 
 `UP_TIMERS` parameter (`CommandDao#commandToUpdateTimer`):
 
