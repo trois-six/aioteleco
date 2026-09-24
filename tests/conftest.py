@@ -6,17 +6,16 @@ import asyncio
 import contextlib
 import inspect
 import json
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import aiohttp
 import pytest
-from aioresponses import CallbackResult, aioresponses
-from yarl import URL
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 
-from aioteleco.const import BASE_URL, Endpoint
+from aioteleco.const import Endpoint
 from aioteleco.hub import TelecoHub
 from aioteleco.local.crypto import decrypt
 from aioteleco.models import DeviceInfo, Room
@@ -34,10 +33,6 @@ def load_json(name: str) -> Any:
     return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
 
 
-def url(endpoint: Endpoint | str) -> str:
-    return f"{BASE_URL}/{endpoint}"
-
-
 def envelope(value: Any = None, *, ok: bool = True, msg: str = "") -> JsonDict:
     return {"codEsito": "S" if ok else "E", "msgEsito": msg, "valRisultato": value}
 
@@ -51,15 +46,31 @@ def tmate(text: str, *, kind: str = "INFO", reference: str | None = "ref1") -> J
     }
 
 
-Handler = JsonDict | Callable[[JsonDict], JsonDict]
+# What an endpoint answers: a JSON payload (object or array), or a callable taking the
+# posted body and returning (or awaiting) a JSON payload or a ready-made ``web.Response``.
+Handler = JsonDict | list[Any] | Callable[[JsonDict], Any]
+
+
+def sequence(*responses: Any) -> Callable[[JsonDict], Any]:
+    """A handler answering each response in turn, then repeating the last one."""
+    pending = list(responses)
+
+    def handler(_body: JsonDict) -> Any:
+        return pending.pop(0) if len(pending) > 1 else pending[0]
+
+    return handler
 
 
 class FakeCloud:
-    """Routes every cloud endpoint (repeatable) and records the posted bodies."""
+    """A local HTTP server routing every cloud endpoint and recording the posted bodies.
 
-    def __init__(self, mock: aioresponses) -> None:
+    Point the SDK at it with ``base_url=cloud.url`` (the ``cloud`` fixture starts it).
+    """
+
+    def __init__(self) -> None:
+        self.url = ""  # set once the server listens
         self.calls: list[tuple[Endpoint, JsonDict]] = []
-        self.auth: list[Any] = []
+        self.auth: list[str | None] = []  # the Authorization header of each request
         self.acks: list[JsonDict] = []  # consumed first, then ``default_ack``
         self.default_ack = tmate("PROC")
         self.handlers: dict[Endpoint, Handler] = {
@@ -78,8 +89,9 @@ class FakeCloud:
             Endpoint.FEED_THE_COMMANDS: tmate("Command queued"),
             Endpoint.GET_ACK_COMMAND: self._ack,
         }
+        self.app = web.Application()
         for endpoint in Endpoint:
-            mock.post(url(endpoint), callback=self._callback(endpoint), repeat=True)
+            self.app.router.add_post(f"/{endpoint}", self._route(endpoint))
 
     def bodies(self, endpoint: Endpoint) -> list[JsonDict]:
         return [body for ep, body in self.calls if ep is endpoint]
@@ -97,27 +109,20 @@ class FakeCloud:
         )
         return load_json(name) if name else envelope({"statusitemList": []})
 
-    def _callback(self, endpoint: Endpoint) -> Callable[..., Any]:
-        def callback(_url: Any, **kwargs: Any) -> Any:
-            body: JsonDict = kwargs.get("json") or {}
+    def _route(self, endpoint: Endpoint) -> Callable[[web.Request], Any]:
+        async def route(request: web.Request) -> web.StreamResponse:
+            body: JsonDict = await request.json() if request.can_read_body else {}
             self.calls.append((endpoint, body))
-            self.auth.append(kwargs.get("auth"))
+            self.auth.append(request.headers.get("Authorization"))
             handler = self.handlers.get(endpoint, envelope(ok=False, msg="not mocked"))
             payload = handler(body) if callable(handler) else handler
-            return CallbackResult(payload=payload)
+            if inspect.isawaitable(payload):
+                payload = await payload
+            if isinstance(payload, web.StreamResponse):
+                return payload
+            return web.json_response(payload)
 
-        return callback
-
-
-class _CompatClientResponse(aiohttp.ClientResponse):
-    """aioresponses 0.7.9 does not pass ``stream_writer``, required since aiohttp 3.14."""
-
-    def __init__(self, method: str, url: URL, **kwargs: Any) -> None:
-        kwargs.setdefault("stream_writer", SimpleNamespace(output_size=0))
-        super().__init__(method, url, **kwargs)
-
-
-_NEEDS_STREAM_WRITER = "stream_writer" in inspect.signature(aiohttp.ClientResponse).parameters
+        return route
 
 
 class FakeBox:
@@ -193,16 +198,14 @@ def device_infos(rooms: list[Room]) -> dict[str, DeviceInfo]:
 
 
 @pytest.fixture
-def mock_http(monkeypatch: pytest.MonkeyPatch) -> Iterator[aioresponses]:
-    if _NEEDS_STREAM_WRITER:
-        monkeypatch.setattr("aioresponses.core.ClientResponse", _CompatClientResponse)
-    with aioresponses() as mock:
-        yield mock
-
-
-@pytest.fixture
-def cloud(mock_http: aioresponses) -> FakeCloud:
-    return FakeCloud(mock_http)
+async def cloud() -> AsyncIterator[FakeCloud]:
+    """The fake cloud, served on 127.0.0.1 (ephemeral port) at ``cloud.url``."""
+    fake = FakeCloud()
+    server = TestServer(fake.app, host="127.0.0.1")
+    await server.start_server()
+    fake.url = str(server.make_url("/"))
+    yield fake
+    await server.close()
 
 
 @pytest.fixture
@@ -241,7 +244,7 @@ HubFactory = Callable[..., TelecoHub]
 def make_hub(http: aiohttp.ClientSession, cloud: FakeCloud, no_poll_delay: None) -> HubFactory:
     def factory(transport: TransportMode = TransportMode.AUTO, **kwargs: Any) -> TelecoHub:
         kwargs.setdefault("ack_timeout", 1.0)
-        return TelecoHub(http, EMAIL, PASSWORD, transport=transport, **kwargs)
+        return TelecoHub(http, EMAIL, PASSWORD, transport=transport, base_url=cloud.url, **kwargs)
 
     return factory
 

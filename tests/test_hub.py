@@ -1,4 +1,4 @@
-"""TelecoHub end to end: fake cloud (aioresponses) + fake box (TCP on 127.0.0.1)."""
+"""TelecoHub end to end: fake cloud (local aiohttp server) + fake box (TCP on 127.0.0.1)."""
 
 from __future__ import annotations
 
