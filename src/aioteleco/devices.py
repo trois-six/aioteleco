@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from .hub import TelecoHub
     from .transport import SendResult
 
+_MODEL_SLIDER_DIMMER = 34
+
 
 class DeviceFamily(StrEnum):
     SWITCH = "switch"
@@ -179,11 +181,25 @@ class Dimmer(Light):
             raise ValueError("step must be within 1..4")
         return await self.send(CommandAction.POWER, f"LEV{step}")
 
+    @property
+    def has_continuous_level(self) -> bool:
+        """Only slider dimmers (model 34) take a free 0-100 level; the others have 4 steps."""
+        return self.model == _MODEL_SLIDER_DIMMER
+
     async def set_level(self, level: int) -> SendResult:
-        """Continuous level (slider dimmers, model 34)."""
+        """Brightness 0..100; 0 turns the device off.
+
+        Slider dimmers (model 34) get the value itself (``LEVEL <n>``), like the app's
+        slider. Stepped dimmers get the nearest step (25/50/75/100): they also list a
+        parametric ``LEVEL`` command, but the box ignores it for them.
+        """
         if not 0 <= level <= 100:
             raise ValueError("level must be within 0..100")
-        return await self.send(CommandAction.LEVEL, str(level))
+        if level == 0:
+            return await self.turn_off()
+        if self.has_continuous_level:
+            return await self.send(CommandAction.LEVEL, str(level))
+        return await self.set_step(min(4, max(1, round(level / 25))))
 
 
 class Heater(Dimmer):
@@ -244,6 +260,21 @@ class Cover(Device):
     def state(self) -> str | None:
         """``OPEN``, ``CLOSE``, ``STOP`` or ``None`` (unknown / moving)."""
         return self._status(StatusItemCode.OPEN_CLOSE)
+
+    @property
+    def position(self) -> int | None:
+        """Open percentage as the app shows it (``OpenStopCloseDeviceActionFragment``).
+
+        ``LEVEL`` while ``OPEN``, 0 when ``CLOSE`` (whatever ``LEVEL`` says), ``None``
+        when stopped midway or moving. These devices only take open/stop/close.
+        """
+        state = self.state
+        if state == "CLOSE":
+            return 0
+        if state == "OPEN":
+            value = self._status(StatusItemCode.LEVEL)
+            return int(value) if value and value.isdigit() else 100
+        return None
 
     @property
     def is_closed(self) -> bool | None:

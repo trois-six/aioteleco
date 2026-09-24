@@ -44,6 +44,17 @@ Pergola slats (model 27, `OpenStopCloseStepsDeviceActionFragment`): position 0 �
 `OPEN_STOP_CLOSE CLOSE` (models 44/45: `LEVEL LEV1`), 33 → `LEVEL LEV2`,
 66 → `LEVEL LEV3`, 100 → `LEVEL LEV4`.
 
+Dimmers (`OnOffStepsDeviceActionFragment`, models 17–20 and 34): the step buttons send
+`POWER LEV1`…`LEV4`, `ON` and `OFF`. Only model 34 shows the slider, which sends
+`LEVEL <0-100>` (`POWER OFF` at 0); the Brustor app hides it too. Stepped dimmers also
+list a parametric `LEVEL` command (`commandParam "0"`), but the box ignores a free
+level sent to them: the SDK maps `Dimmer.set_level` to the nearest step there.
+
+Open/stop/close devices (models 21–25, 31, 43, 47, `OpenStopCloseDeviceActionFragment`)
+only take `OPEN`, `STOP` and `CLOSE`. The percentage the app shows is derived from the
+status: `LEVEL` while `OPEN_CLOSE == "OPEN"`, 0 when `CLOSE` (a closed device can report
+`LEVEL 100`), and "-" otherwise (`Cover.position`).
+
 ## Selection algorithm (`DaisyApplication#sendCommand`, from smali)
 
 ```

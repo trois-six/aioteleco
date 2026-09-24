@@ -300,7 +300,7 @@ def light_step(device: str, step: int) -> None:
 
 @light_app.command("level")
 def light_level(device: str, level: Annotated[int, typer.Argument(min=0, max=100)]) -> None:
-    """Free dimmer level 0..100 (the device's parametric LEVEL command)."""
+    """Dimmer level 0..100: free on slider dimmers, nearest step otherwise; 0 = off."""
     _run(lambda hub, _: _then(_device(hub, device, Dimmer).set_level(level)))
 
 
