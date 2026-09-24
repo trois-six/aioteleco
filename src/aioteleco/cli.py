@@ -1,11 +1,15 @@
-"""``teleco`` command line: drive and diagnose Daisy installations.
+"""``teleco`` command line: drive and diagnose Teleco Automation installations.
 
 Credentials come from ``--email/--password``, the ``TELECO_EMAIL`` /
 ``TELECO_PASSWORD`` environment variables, or ``~/.config/aioteleco/config.toml``::
 
     email = "me@example.com"
     password = "..."
-    local_ip = "192.168.1.50"   # optional
+    local_ip = "192.0.2.10"   # optional
+
+    [travel."SCREEN 1"]       # full travel times in seconds (`teleco cover calibrate`)
+    open = 24.5
+    close = 23.0
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ import os
 import sys
 import tomllib
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -28,7 +32,16 @@ except ImportError:  # pragma: no cover
 
 import aiohttp
 
-from .devices import ColorLight, Cover, Device, Dimmer, OnOffDevice, PresetRgbLight, Slats
+from .devices import (
+    ColorLight,
+    Cover,
+    Device,
+    Dimmer,
+    OnOffDevice,
+    PresetRgbLight,
+    Slats,
+    TravelTimes,
+)
 from .diagnostics import collect
 from .exceptions import TelecoError
 from .hub import TelecoHub
@@ -57,6 +70,7 @@ class Options:
     transport: TransportMode = TransportMode.AUTO
     local_ip: str | None = None
     as_json: bool = False
+    travel: dict[str, Any] = field(default_factory=dict)
 
 
 OPTS = Options()
@@ -87,6 +101,7 @@ def main_options(
     OPTS.transport = transport
     OPTS.local_ip = local_ip or config.get("local_ip")
     OPTS.as_json = as_json
+    OPTS.travel = config.get("travel") or {}
     logging.basicConfig(level=logging.DEBUG if debug else logging.WARNING)
 
 
@@ -259,6 +274,68 @@ def cover_stop(device: str) -> None:
 def cover_position(device: str, percent: int) -> None:
     """Move slats to the nearest step (0/33/66/100)."""
     _run(lambda hub, _: _then(_device(hub, device, Slats).set_position(percent)))
+
+
+@cover_app.command("travel")
+def cover_travel(
+    device: str,
+    percent: Annotated[int, typer.Argument(min=0, max=100)],
+    open_time: Annotated[float | None, typer.Option(help="full opening time (s)")] = None,
+    close_time: Annotated[float | None, typer.Option(help="full closing time (s)")] = None,
+) -> None:
+    """Timed move to any position (0 closed .. 100 open), then STOP.
+
+    Travel times come from the options or from [travel."<device>"] in the config file.
+    From an unknown position (stopped midway) the cover first closes completely.
+    """
+
+    async def go(hub: TelecoHub, _: Installation) -> None:
+        cover = _device(hub, device, Cover)
+        conf = OPTS.travel.get(cover.name) or {}
+        up, down = open_time or conf.get("open"), close_time or conf.get("close")
+        if not up or not down:
+            raise TelecoError(
+                f"no travel times for {cover.name!r}: pass --open-time/--close-time or "
+                f"run `teleco cover calibrate {cover.name!r}`"
+            )
+        cover.travel_times = TravelTimes(open=float(up), close=float(down))
+        await cover.refresh()
+        if cover.position is None:
+            typer.echo("position unknown: closing completely first", err=True)
+        await cover.travel_to(percent)
+        _print({"position": cover.position}, f"{cover.name}: ~{cover.position}%")
+
+    _run(go)
+
+
+@cover_app.command("calibrate")
+def cover_calibrate(device: str) -> None:
+    """Measure the full opening and closing times (interactive: watch the cover)."""
+
+    async def ask(prompt: str) -> None:
+        await asyncio.to_thread(input, prompt)
+
+    async def go(hub: TelecoHub, _: Installation) -> None:
+        cover = _device(hub, device, Cover)
+        loop = asyncio.get_running_loop()
+        await ask(f"Press Enter to CLOSE {cover.name!r} completely... ")
+        await cover.close()
+        await ask("Press Enter once it is fully closed, to start OPENING it... ")
+        started = loop.time()
+        await cover.open()
+        await ask("Press Enter the moment it stops (fully open)... ")
+        opening = loop.time() - started
+        await ask("Press Enter to start CLOSING it... ")
+        started = loop.time()
+        await cover.close()
+        await ask("Press Enter the moment it stops (fully closed)... ")
+        closing = loop.time() - started
+        _print(
+            {"device": cover.name, "open": round(opening, 1), "close": round(closing, 1)},
+            f'[travel."{cover.name}"]\nopen = {opening:.1f}\nclose = {closing:.1f}',
+        )
+
+    _run(go)
 
 
 @light_app.command("on")

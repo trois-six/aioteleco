@@ -53,7 +53,9 @@ level sent to them: the SDK maps `Dimmer.set_level` to the nearest step there.
 Open/stop/close devices (models 21–25, 31, 43, 47, `OpenStopCloseDeviceActionFragment`)
 only take `OPEN`, `STOP` and `CLOSE`. The percentage the app shows is derived from the
 status: `LEVEL` while `OPEN_CLOSE == "OPEN"`, 0 when `CLOSE` (a closed device can report
-`LEVEL 100`), and "-" otherwise (`Cover.position`).
+`LEVEL 100`), and "-" otherwise (`Cover.position`). The SDK can still reach any position
+by timing a move and sending `STOP` (`Cover.travel_to`, `teleco cover travel`), from
+full travel times measured once (`teleco cover calibrate`); the app does not do this.
 
 ## Selection algorithm (`DaisyApplication#sendCommand`, from smali)
 

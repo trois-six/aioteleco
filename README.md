@@ -74,6 +74,8 @@ teleco devices --status          # rooms, devices, current state
 teleco box                       # box LAN address, signal, firmware
 teleco cover open "Pergola"      # open / close / stop
 teleco cover position "Pergola" 66
+teleco cover calibrate "Screen" # measure full travel times (interactive)
+teleco cover travel "Screen" 40   # timed move to any position, then STOP
 teleco light color "LED" 255 120 0 --brightness 80
 teleco scenario run "Evening"
 teleco send "Pergola" OPEN_STOP_CLOSE STOP      # raw (action, param)
