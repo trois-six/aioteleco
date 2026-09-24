@@ -33,6 +33,7 @@ dev = [
   "mypy>=1.15",
   "pytest>=8.3",
   "pytest-asyncio>=0.25",
+  "pytest-cov>=7.1",
   "ruff>=0.11",
   "typer>=0.15",
 ]
@@ -52,7 +53,21 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 markers = ["live: talks to the real Teleco cloud / box (deselected by default)"]
-addopts = "-m 'not live'"
+# --cov: every plain `uv run pytest` (CI included) reports coverage and enforces
+# [tool.coverage.report] fail_under; pass --no-cov to skip it (e.g. running one test).
+addopts = "-m 'not live' --strict-markers --strict-config --cov"
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["aioteleco"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 75
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
 
 [tool.mypy]
 strict = true
