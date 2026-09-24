@@ -1,7 +1,7 @@
 [project]
 name = "aioteleco"
 dynamic = ["version"]
-description = "Async Python SDK for Teleco Automation boxes (Daisy): pergolas, awnings, lights — cloud and local control"
+description = "Async Python SDK and CLI for Teleco Automation boxes of every brand app (Daisy, Biossun, Gibus…): cloud and local control"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -12,7 +12,12 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Framework :: AsyncIO",
   "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Home Automation",
   "Typing :: Typed",
 ]
