@@ -41,6 +41,10 @@ docs = [
   "mkdocstrings[python]>=1.0",
 ]
 
+[tool.uv]
+# docs is synced by default too: mypy type-checks the MkDocs hooks in scripts/.
+default-groups = ["dev", "docs"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
