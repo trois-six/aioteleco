@@ -322,6 +322,29 @@ class Cover(Device):
         return min(100.0, max(0.0, origin + direction * elapsed / full * 100))
 
     @property
+    def direction(self) -> int:
+        """+1 while opening, -1 while closing, 0 otherwise (moves sent by this object).
+
+        A move counts as over once its full travel time has elapsed (needs
+        :attr:`travel_times`; without them a move lasts until the next command).
+        """
+        if self._motion is None:
+            return 0
+        direction, started, _ = self._motion
+        if self.travel_times is not None:
+            full = self.travel_times.open if direction > 0 else self.travel_times.close
+            if asyncio.get_running_loop().time() - started >= full:
+                return 0
+        return direction
+
+    def restore_position(self, percent: float | None) -> None:
+        """Seed the position estimate, e.g. from the last state saved by Home Assistant."""
+        if percent is not None and not 0 <= percent <= 100:
+            raise ValueError("position must be within 0..100")
+        if self._motion is None:
+            self._estimate = percent
+
+    @property
     def is_closed(self) -> bool | None:
         position = self.position
         if position is not None:

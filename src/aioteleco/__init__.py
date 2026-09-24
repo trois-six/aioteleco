@@ -1,4 +1,4 @@
-"""Async SDK for Teleco Automation Daisy boxes (pergolas, awnings, lights...)."""
+"""Async SDK for Teleco Automation boxes (pergolas, awnings, screens, lights...)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from .devices import (
     OnOffDevice,
     PresetRgbLight,
     Slats,
+    TravelTimes,
     WhiteLight,
 )
 from .exceptions import (
@@ -74,5 +75,6 @@ __all__ = [
     "TelecoUnsupportedError",
     "Timer",
     "TransportMode",
+    "TravelTimes",
     "WhiteLight",
 ]

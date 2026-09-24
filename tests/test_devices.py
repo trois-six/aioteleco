@@ -194,3 +194,24 @@ async def test_stop_interrupts_a_travel() -> None:
     assert [p for _, p in hub.sent] == ["OPEN", "STOP"]
     assert cover.position == pytest.approx(25, abs=10)  # 0.1 s of a 0.4 s travel
     assert cover.state == "CLOSE"  # the cloud status is only updated by refresh()
+
+
+async def test_direction_follows_the_moves() -> None:
+    cover, _ = timed_cover("CLOSE")
+    assert cover.direction == 0
+    await cover.open()
+    assert cover.direction == 1
+    await asyncio.sleep(0.45)  # longer than the 0.4 s opening time
+    assert cover.direction == 0
+    await cover.close()
+    assert cover.direction == -1
+    await cover.stop()
+    assert cover.direction == 0
+
+
+async def test_restore_position() -> None:
+    cover, _ = timed_cover(None)
+    cover.restore_position(40)
+    assert cover.position == 40
+    with pytest.raises(ValueError, match=r"0\.\.100"):
+        cover.restore_position(120)
