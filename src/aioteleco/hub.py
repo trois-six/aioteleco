@@ -15,7 +15,7 @@ from .devices import Device, device_class
 from .exceptions import TelecoError, TelecoUnsupportedError
 from .local.client import LocalClient
 from .models import Command, DeviceInfo, Installation, NetParam, Room, Scenario, StatusItem, Timer
-from .timers import up_schedule_command, up_timers_command
+from .timers import del_timer_command, up_schedule_command, up_timers_command
 from .transport import CommandSender, SendResult, TransportMode
 
 _LOGGER = logging.getLogger(__name__)
@@ -241,6 +241,36 @@ class TelecoHub:
             for t in device.info.timers
         ]
         device.info.timers = await self.api.save_timers(inst, device.id, merged)
+        return device.info.timers
+
+    async def delete_timer(self, device: Device, id_timer: int) -> list[Timer]:
+        """Delete one timer of a device, the way the app does.
+
+        ``DEL_TIM`` is sent to the box and acked first; only then is the device's
+        current cloud list saved back without that timer.
+        """
+        inst = device.installation
+        await self.sender.send(
+            inst,
+            [del_timer_command(inst.id_installation_device, id_timer)],
+            cloud_only=True,
+            until=(ACK_ACCEPTED,),
+        )
+        # timer-device-list/ has been seen returning [] for a device that has timers:
+        # take the current list from room-configuration-list instead.
+        current = next(
+            (
+                info.timers
+                for room in await self.api.rooms(inst, full=True)
+                for info in room.devices
+                if info.id_installation_device == device.id
+            ),
+            None,
+        )
+        if current is None:
+            raise TelecoError(f"device {device.id} not found in the cloud configuration")
+        remaining = [t for t in current if t.id_installation_device_timer != id_timer]
+        device.info.timers = await self.api.save_timers(inst, device.id, remaining)
         return device.info.timers
 
     async def set_timers_enabled(self, installation: Installation, enabled: bool) -> None:

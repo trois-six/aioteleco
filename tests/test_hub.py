@@ -10,7 +10,7 @@ import pytest
 from aioteleco import diagnostics
 from aioteleco.const import Endpoint
 from aioteleco.devices import ColorLight, Cover, Slats
-from aioteleco.exceptions import TelecoLocalError, TelecoUnsupportedError
+from aioteleco.exceptions import TelecoCommandError, TelecoLocalError, TelecoUnsupportedError
 from aioteleco.hub import InstallationData, TelecoHub
 from aioteleco.local.client import LocalClient
 from aioteleco.models import Timer
@@ -415,3 +415,32 @@ async def test_save_new_timer(hub: TelecoHub, cloud: FakeCloud) -> None:
         Endpoint.FEED_THE_COMMANDS,
         Endpoint.TIMER_DEVICE_SETUP,
     ]
+
+
+async def test_delete_timer(hub: TelecoHub, cloud: FakeCloud) -> None:
+    slats = slats_of(await loaded(hub))
+    cloud.handlers[Endpoint.TIMER_DEVICE_SETUP] = timer_list
+    cloud.default_ack = tmate("ACK")
+    assert await hub.delete_timer(slats, 5001) == []
+    (feed,) = cloud.bodies(Endpoint.FEED_THE_COMMANDS)
+    (command,) = feed["commandsList"]
+    assert (command["commandAction"], command["commandParam"]) == ("DEL_TIM", "00001389")
+    assert (command["deviceCode"], command["idInstallationDevice"]) == ("0", 789)
+    (setup,) = cloud.bodies(Endpoint.TIMER_DEVICE_SETUP)
+    assert setup["timerList"] == []
+    order = [ep for ep, _ in cloud.calls if ep is not Endpoint.GET_ACK_COMMAND]
+    assert order[-3:] == [
+        Endpoint.FEED_THE_COMMANDS,
+        Endpoint.ROOM_CONFIGURATION_LIST,
+        Endpoint.TIMER_DEVICE_SETUP,
+    ]
+
+
+async def test_delete_timer_keeps_cloud_list_when_box_refuses(
+    hub: TelecoHub, cloud: FakeCloud
+) -> None:
+    slats = slats_of(await loaded(hub))
+    cloud.acks = [tmate("Box offline", kind="ERROR")]
+    with pytest.raises(TelecoCommandError):
+        await hub.delete_timer(slats, 5001)
+    assert cloud.count(Endpoint.TIMER_DEVICE_SETUP) == 0

@@ -3,7 +3,8 @@
 Saving timers is a two-step dance in the app (``SetupDeviceTimersActivity``):
 first an ``UP_TIMERS`` system command per timer is sent to the box and acked
 (``MessageText == "ACK"``), then the device's *complete* timer list is posted to
-``timer-device-setup/``.
+``timer-device-setup/``. Deleting one (``SetupTimerListActivity#deleteTimer``) is the
+same with ``DEL_TIM``, then the list without that timer.
 """
 
 from __future__ import annotations
@@ -80,6 +81,11 @@ def up_timers_command(
         up_timers_param(timer, device, command),
         device_code=str(device.device_index),
     )
+
+
+def del_timer_command(box_device_id: int, id_timer: int) -> WireCommand:
+    """Remove one timer from the box (``DEL_TIM``: timer id on 8 hex digits)."""
+    return system_command(box_device_id, "DEL_TIM", f"{id_timer:x}".rjust(8, "0"))
 
 
 def up_schedule_command(box_device_id: int, enabled: bool) -> WireCommand:
