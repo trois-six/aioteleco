@@ -32,7 +32,7 @@ from .hub import BoxInfo, InstallationData, TelecoHub
 from .models import Installation, Room, Scenario, StatusItem, Timer
 from .transport import Channel, SendResult, TransportMode
 
-__version__ = "1.0.0a1"
+__version__ = "0.1.0"
 
 __all__ = [
     "Audio",
