@@ -1,0 +1,20 @@
+{
+  "codEsito": "S",
+  "msgEsito": "",
+  "valRisultato": {
+    "installationList": [
+      {
+        "idInstallation": 456,
+        "idInstallationDevice": 789,
+        "instCode": "TESTCODE01",
+        "instDescription": "Test house",
+        "firmwareVersion": "V2.10",
+        "activetimer": "S",
+        "workdays": "2",
+        "installationOrder": 0,
+        "latitude": "45.000000",
+        "longitude": "7.000000"
+      }
+    ]
+  }
+}

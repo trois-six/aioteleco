@@ -1,0 +1,12 @@
+{
+  "codEsito": "S",
+  "msgEsito": "",
+  "valRisultato": {
+    "idSession": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "idAccount": 1234,
+    "email": "user@example.com",
+    "name": "Test",
+    "surname": "User",
+    "language": "en"
+  }
+}

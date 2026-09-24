@@ -1,0 +1,27 @@
+{
+  "codEsito": "S",
+  "msgEsito": "",
+  "valRisultato": {
+    "scenarioList": [
+      {
+        "idInstallationScenario": 7001,
+        "scenarioDescription": "Evening",
+        "icon": 3,
+        "scenarioOrder": 1,
+        "idInstallationRoom": 1001,
+        "commandList": [
+          {
+            "idInstallationDeviceCommand": 3023,
+            "commandIndex": 2,
+            "commandParam": "A080R255G128B000"
+          },
+          {
+            "idInstallationDeviceCommand": 3005,
+            "commandIndex": 1,
+            "commandParam": "LEV2"
+          }
+        ]
+      }
+    ]
+  }
+}

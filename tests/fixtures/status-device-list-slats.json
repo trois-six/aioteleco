@@ -1,0 +1,32 @@
+{
+  "codEsito": "S",
+  "msgEsito": "",
+  "valRisultato": {
+    "statusitemList": [
+      {
+        "idInstallationDeviceStatusitem": 8101,
+        "idDevicetypeStatusitemModel": 901,
+        "statusItem": "OPEN_CLOSE",
+        "statusitemCode": "OPEN_CLOSE",
+        "statusValue": "OPEN",
+        "lowlevelStatusitem": ""
+      },
+      {
+        "idInstallationDeviceStatusitem": 8102,
+        "idDevicetypeStatusitemModel": 902,
+        "statusItem": "LEVEL",
+        "statusitemCode": "LEVEL",
+        "statusValue": "66",
+        "lowlevelStatusitem": ""
+      },
+      {
+        "idInstallationDeviceStatusitem": 8103,
+        "idDevicetypeStatusitemModel": 903,
+        "statusItem": "RETR",
+        "statusitemCode": "RETR",
+        "statusValue": "NO",
+        "lowlevelStatusitem": ""
+      }
+    ]
+  }
+}

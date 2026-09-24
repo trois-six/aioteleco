@@ -1,0 +1,32 @@
+{
+  "codEsito": "S",
+  "msgEsito": "",
+  "valRisultato": {
+    "statusitemList": [
+      {
+        "idInstallationDeviceStatusitem": 8001,
+        "idDevicetypeStatusitemModel": 901,
+        "statusItem": "NET_PARAM",
+        "statusitemCode": "NET_PARAM",
+        "statusValue": "IP: 192.0.2.10 NameNet: TestWifi",
+        "lowlevelStatusitem": ""
+      },
+      {
+        "idInstallationDeviceStatusitem": 8002,
+        "idDevicetypeStatusitemModel": 902,
+        "statusItem": "SIGNAL",
+        "statusitemCode": "SIGNAL",
+        "statusValue": "-60",
+        "lowlevelStatusitem": ""
+      },
+      {
+        "idInstallationDeviceStatusitem": 8003,
+        "idDevicetypeStatusitemModel": 903,
+        "statusItem": "CURRENT_TIME",
+        "statusitemCode": "CURRENT_TIME",
+        "statusValue": "2026-09-24 18:30",
+        "lowlevelStatusitem": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "codEsito": "S",
+  "msgEsito": "",
+  "valRisultato": {
+    "roomList": [
+      {
+        "idInstallationRoom": 1001,
+        "idRoomtype": 5,
+        "roomDescription": "Garden",
+        "roomOrder": 1,
+        "deviceList": [
+          {
+            "idInstallationDevice": 2001,
+            "idDevicemodel": 27,
+            "idDevicetype": 22,
+            "deviceCode": 12,
+            "deviceIndex": 1,
+            "deviceOrder": 1,
+            "label": "Pergola slats",
+            "remoteControlCode": "",
+            "favorite": "S",
+            "feedback": "N",
+            "directOnly": "N",
+            "activetimer": "S",
+            "deviceCommandList": [
+              {
+                "idInstallationDeviceCommand": 3001,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 94,
+                "commandAction": "OPEN_STOP_CLOSE",
+                "commandParam": "OPEN",
+                "lowlevelCommand": "CH4",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3002,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 95,
+                "commandAction": "OPEN_STOP_CLOSE",
+                "commandParam": "STOP",
+                "lowlevelCommand": "CH7",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3003,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 96,
+                "commandAction": "OPEN_STOP_CLOSE",
+                "commandParam": "CLOSE",
+                "lowlevelCommand": "CH1",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3004,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 97,
+                "commandAction": "LEVEL",
+                "commandParam": "LEV1",
+                "lowlevelCommand": "CH1",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3005,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 98,
+                "commandAction": "LEVEL",
+                "commandParam": "LEV2",
+                "lowlevelCommand": "CH2",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3006,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 99,
+                "commandAction": "LEVEL",
+                "commandParam": "LEV3",
+                "lowlevelCommand": "CH3",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3007,
+                "idInstallationDevice": 2001,
+                "idDevicetypeCommandModel": 100,
+                "commandAction": "LEVEL",
+                "commandParam": "LEV4",
+                "lowlevelCommand": "CH4",
+                "commandIndex": 0
+              }
+            ],
+            "deviceTimersList": [
+              {
+                "idInstallationDeviceTimer": 5001,
+                "idInstallationDeviceCommand": 3006,
+                "timerOrder": 1,
+                "timerDate": "2026-09-24 18:30",
+                "timerActive": "S",
+                "giorni": "S;S;S;S;S;N;N",
+                "crepuscolare": "N",
+                "albaTramonto": 0,
+                "crepuscolareOffset": 0,
+                "commandParam": "LEV3"
+              }
+            ]
+          },
+          {
+            "idInstallationDevice": 2002,
+            "idDevicemodel": 24,
+            "idDevicetype": 22,
+            "deviceCode": 13,
+            "deviceIndex": 2,
+            "deviceOrder": 2,
+            "label": "Awning",
+            "remoteControlCode": "",
+            "favorite": "N",
+            "feedback": "S",
+            "directOnly": "N",
+            "activetimer": "N",
+            "deviceCommandList": [
+              {
+                "idInstallationDeviceCommand": 3011,
+                "idInstallationDevice": 2002,
+                "idDevicetypeCommandModel": 75,
+                "commandAction": "OPEN_STOP_CLOSE",
+                "commandParam": "OPEN",
+                "lowlevelCommand": "CH5",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3012,
+                "idInstallationDevice": 2002,
+                "idDevicetypeCommandModel": 76,
+                "commandAction": "OPEN_STOP_CLOSE",
+                "commandParam": "STOP",
+                "lowlevelCommand": "CH7",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3013,
+                "idInstallationDevice": 2002,
+                "idDevicetypeCommandModel": 77,
+                "commandAction": "OPEN_STOP_CLOSE",
+                "commandParam": "CLOSE",
+                "lowlevelCommand": "CH8",
+                "commandIndex": 0
+              }
+            ],
+            "deviceTimersList": []
+          },
+          {
+            "idInstallationDevice": 2003,
+            "idDevicemodel": 32,
+            "idDevicetype": 21,
+            "deviceCode": 14,
+            "deviceIndex": 3,
+            "deviceOrder": 3,
+            "label": "Pergola light",
+            "remoteControlCode": "",
+            "favorite": "N",
+            "feedback": "N",
+            "directOnly": "N",
+            "activetimer": "N",
+            "deviceCommandList": [
+              {
+                "idInstallationDeviceCommand": 3021,
+                "idInstallationDevice": 2003,
+                "idDevicetypeCommandModel": 146,
+                "commandAction": "POWER",
+                "commandParam": "ON",
+                "lowlevelCommand": "CH1",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3022,
+                "idInstallationDevice": 2003,
+                "idDevicetypeCommandModel": 147,
+                "commandAction": "POWER",
+                "commandParam": "OFF",
+                "lowlevelCommand": "CH8",
+                "commandIndex": 0
+              },
+              {
+                "idInstallationDeviceCommand": 3023,
+                "idInstallationDevice": 2003,
+                "idDevicetypeCommandModel": 137,
+                "commandAction": "COLOR",
+                "commandParam": "0",
+                "lowlevelCommand": "",
+                "commandIndex": 0
+              }
+            ],
+            "deviceTimersList": []
+          }
+        ]
+      }
+    ]
+  }
+}
