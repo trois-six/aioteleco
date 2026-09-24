@@ -1,6 +1,6 @@
 [project]
 name = "aioteleco"
-version = "0.1.0"
+version = "0.2.0"
 description = "Async Python SDK and CLI for Teleco Automation boxes of every brand app (Daisy, Biossun, Gibus…): cloud and local control"
 readme = "README.md"
 license = "MIT"

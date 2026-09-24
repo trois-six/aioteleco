@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/trois-six/aioteleco/compare/v0.1.0...v0.2.0) (2026-09-24)
+
+
+### Features
+
+* **cover:** expose the move direction and restore a saved position ([d63cba8](https://github.com/trois-six/aioteleco/commit/d63cba8bc93dad408b7394337b2eba6796fb1583))
+
+
+### Bug Fixes
+
+* **cli:** save the calibrated travel times to the config file ([f3dc914](https://github.com/trois-six/aioteleco/commit/f3dc91497d1aa2d5737e28186d45419401a5eff1))
+
 ## 0.1.0 (2026-09-24)
 
 
