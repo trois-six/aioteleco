@@ -1,6 +1,6 @@
 [project]
 name = "aioteleco"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Async Python SDK and CLI for Teleco Automation boxes of every brand app (Daisy, Biossun, Gibus…): cloud and local control"
 readme = "README.md"
 license = "MIT"
@@ -51,14 +51,13 @@ docs = [
 default-groups = ["dev", "docs"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.18,<0.13"]
+build-backend = "uv_build"
 
-[tool.hatch.version]
-path = "src/aioteleco/__init__.py"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/aioteleco"]
+[tool.uv.build-backend]
+# module-root "src" and module-name "aioteleco" are the defaults.
+# Ship the test suite in the sdist (for downstream packagers), nothing else extra.
+source-include = ["tests/**"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

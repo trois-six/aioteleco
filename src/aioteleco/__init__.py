@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
 from .devices import (
     Audio,
     ColorLight,
@@ -32,7 +35,11 @@ from .hub import BoxInfo, InstallationData, TelecoHub
 from .models import Installation, Room, Scenario, StatusItem, Timer
 from .transport import Channel, SendResult, TransportMode
 
-__version__ = "0.1.0"
+try:
+    # Single source of truth: the version in pyproject.toml (installed metadata).
+    __version__ = _dist_version("aioteleco")
+except PackageNotFoundError:  # pragma: no cover - imported from a source tree, not installed
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     "Audio",
