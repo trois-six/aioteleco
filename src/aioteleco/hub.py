@@ -214,9 +214,12 @@ class TelecoHub:
         inst = device.installation
         timers = [t for t in device.info.timers if t.id_installation_device_timer != 0]
         if timer.id_installation_device_timer == 0:
-            timers = await self.api.save_timers(inst, device.id, [*timers, timer])
-            device.info.timers = timers
-            timer = max(timers, key=lambda t: t.id_installation_device_timer)
+            known = {t.id_installation_device_timer for t in timers}
+            device.info.timers = await self.api.save_timers(inst, device.id, [*timers, timer])
+            created = [t for t in device.info.timers if t.id_installation_device_timer not in known]
+            if len(created) != 1:
+                raise TelecoError(f"cannot tell which timer was created: {created}")
+            timer = created[0]
         command = next(
             (
                 c

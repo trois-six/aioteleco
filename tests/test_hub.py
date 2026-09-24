@@ -13,8 +13,9 @@ from aioteleco.devices import ColorLight, Cover, Slats
 from aioteleco.exceptions import TelecoLocalError, TelecoUnsupportedError
 from aioteleco.hub import InstallationData, TelecoHub
 from aioteleco.local.client import LocalClient
+from aioteleco.models import Timer
 from aioteleco.transport import Channel, TransportMode
-from conftest import FakeBox, FakeCloud, HubFactory
+from conftest import FakeBox, FakeCloud, HubFactory, JsonDict, envelope, tmate
 
 
 def use_port(monkeypatch: pytest.MonkeyPatch, port: int) -> None:
@@ -371,3 +372,46 @@ async def test_close_logs_out(hub: TelecoHub, cloud: FakeCloud) -> None:
     await hub.close()
     assert cloud.count(Endpoint.ACCOUNT_LOGOUT) == 1
     assert hub.client.session is None
+
+
+# --- timers ---------------------------------------------------------------------------
+
+
+def timer_list(body: JsonDict) -> JsonDict:
+    """timer-device-setup/: echo the list back, giving new timers (id 0) the id 41."""
+    timers = [
+        {**t, "idInstallationDeviceTimer": t["idInstallationDeviceTimer"] or 41}
+        for t in body["timerList"]
+    ]
+    return envelope({"timerList": timers})
+
+
+async def test_save_new_timer(hub: TelecoHub, cloud: FakeCloud) -> None:
+    slats = slats_of(await loaded(hub))
+    cloud.handlers[Endpoint.TIMER_DEVICE_SETUP] = timer_list
+    cloud.default_ack = tmate("ACK")
+    timer = Timer.from_json(
+        {
+            "idInstallationDeviceTimer": 0,
+            "idInstallationDeviceCommand": 3002,
+            "timerDate": "2026-09-24 21:05",
+            "timerActive": "S",
+            "giorni": "N;N;N;S;N;N;N",
+            "commandParam": "STOP",
+        }
+    )
+    timers = await hub.save_timer(slats, timer)
+    assert [t.id_installation_device_timer for t in timers] == [5001, 41]
+    first, second = cloud.bodies(Endpoint.TIMER_DEVICE_SETUP)
+    assert first["timerList"][-1]["idInstallationDeviceTimer"] == 0  # creation gets the id
+    assert second["timerList"][-1]["idInstallationDeviceTimer"] == 41
+    (feed,) = cloud.bodies(Endpoint.FEED_THE_COMMANDS)
+    (command,) = feed["commandsList"]
+    assert command["commandAction"] == "UP_TIMERS"
+    assert command["commandParam"].split()[-2:] == ["00000029", "TS"]
+    order = [ep for ep, _ in cloud.calls if ep is not Endpoint.GET_ACK_COMMAND]
+    assert order[-3:] == [
+        Endpoint.TIMER_DEVICE_SETUP,
+        Endpoint.FEED_THE_COMMANDS,
+        Endpoint.TIMER_DEVICE_SETUP,
+    ]
