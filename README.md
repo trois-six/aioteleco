@@ -1,6 +1,6 @@
 # aioteleco
 
-[![PyPI](https://img.shields.io/pypi/v/aioteleco)](https://pypi.org/project/aioteleco/)
+[![PyPI](https://img.shields.io/pypi/v/aioteleco?logo=pypi&logoColor=white)](https://pypi.org/project/aioteleco/)
 [![Docs](https://img.shields.io/badge/docs-trois--six.github.io%2Faioteleco-blue)](https://trois-six.github.io/aioteleco/)
 
 Unofficial async Python SDK and command-line tool for **Teleco Automation** boxes, the
