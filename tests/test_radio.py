@@ -31,6 +31,11 @@ ROLLING_VECTORS = [
     (256, "29 DC 05 E2 D4 00 01 3F"),
     (300, "98 BC 07 70 56 00 01 DE"),
     (511, "9E 50 0F 83 59 00 01 26"),
+    (512, "28 94 04 A0 20 00 01 7F"),
+    (513, "4A C8 30 F3 22 00 01 A8"),
+    (600, "C8 CC 38 00 23 00 01 10"),
+    (768, "41 CC 10 20 F2 00 01 D0"),
+    (1023, "F7 F8 0E A3 FF 00 01 60"),
 ]
 
 
@@ -92,10 +97,10 @@ def test_rolling_code_is_the_frames_first_five_bytes() -> None:
     assert frame.valid
 
 
-def test_rolling_code_covers_counter_bits_0_to_8_only() -> None:
-    assert ROLLING_CODE_MAX_COUNTER == 511
-    with pytest.raises(ValueError, match=r"0\.\.511"):
-        rolling_code(TEST_SERIAL, 512)
+def test_rolling_code_covers_counter_bits_0_to_9_only() -> None:
+    assert ROLLING_CODE_MAX_COUNTER == 1023
+    with pytest.raises(ValueError, match=r"0\.\.1023"):
+        rolling_code(TEST_SERIAL, 1024)
 
 
 def test_rolling_code_invalid_inputs() -> None:

@@ -33,16 +33,17 @@ ROLLING_CODE_BYTES = 5
 # Reverse-engineered from on-air captures correlated with the box's own memory (the
 # transmitter serial and the per-device counter, see aioteleco.system). Confirmed exact
 # against every captured frame and against live predictions for counters not yet seen
-# when the model was built. Unknown above ROLLING_CODE_MAX_COUNTER: counter bits 9..15
+# when the model was built. Unknown above ROLLING_CODE_MAX_COUNTER: counter bits 10..15
 # have never been observed on air, so their frame bit, rotation amount and XOR key are
 # unknown.
 #
-# The counter's nine low bits sit in the clear at these frame bit positions (bit k of the
-# counter -> this frame bit). Bit 9 is presumably frame bit 34, never observed.
-_COUNTER_BITS = (6, 5, 3, 0, 39, 22, 20, 36, 35)
+# The counter's ten low bits sit in the clear at these frame bit positions (bit k of the
+# counter -> this frame bit). Bit 9 (frame bit 34) was confirmed by driving a transmitter
+# past counter 512 on air, on two different serials.
+_COUNTER_BITS = (6, 5, 3, 0, 39, 22, 20, 36, 35, 34)
 
 # 24 other bits of the rolling code are one 24-bit word, scattered into these frame bits
-# in this order (cycle position -> frame bit). The remaining 7 (14..17, 28, 29, 34) were 0
+# in this order (cycle position -> frame bit). The remaining 6 (14..17, 28, 29) were 0
 # in every capture.
 _CYCLE_BITS = (
     1, 2, 4, 7, 8, 9, 24, 25, 10, 26, 11, 27, 12, 13, 30, 31, 32, 33, 18, 19, 21, 37, 38, 23,
@@ -57,7 +58,7 @@ _CYCLE_BITS = (
 # Exact for serials that differ from the fitted ones only in those low bits, untested for
 # a serial from another block (another box, a handheld remote).
 _SEED_XOR = 0xD7D76C
-_ROTATIONS = (1, -1, 1, -1, -1, 1, 1, 1, -1)  # per counter bit 0..8, +left/-right
+_ROTATIONS = (1, -1, 1, -1, -1, 1, 1, 1, -1, -1)  # per counter bit 0..9, +left/-right
 _STEP_KEYS = (
     0x000000,
     0x75AADB,
@@ -68,9 +69,10 @@ _STEP_KEYS = (
     0x9D6AA2,
     0x31388A,
     0xF56A3E,
+    0x563A96,
 )
 assert len(_COUNTER_BITS) == len(_ROTATIONS) == len(_STEP_KEYS)
-ROLLING_CODE_MAX_COUNTER = (1 << len(_STEP_KEYS)) - 1  # 511, the counters the model covers
+ROLLING_CODE_MAX_COUNTER = (1 << len(_STEP_KEYS)) - 1  # 1023, the counters the model covers
 _OUTPUT_MASK = 0xDB8DC8
 _WORD_BITS = 24
 _WORD_MASK = (1 << _WORD_BITS) - 1
