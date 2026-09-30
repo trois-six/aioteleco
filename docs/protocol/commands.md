@@ -186,7 +186,9 @@ L <url> N <file> V <version>  L916 <url> N916 <file> V916<version>  L8686 <url> 
 Silicon Labs Gecko Bootloader images (`.gbl`, encrypted and signed) published on public
 Amazon S3 buckets, one per hardware generation and region. Progress is reported in the
 box's `UPDATE_STATUS` status item (`Downloading upgrade...`, `Loading upgrade...NN%`,
-`Applying the upgrade...`, `Upgrade completed successfully!` or an error).
+`Applying the upgrade...`, `Upgrade completed successfully!` or an error). See
+[Radio link → Firmware update](radio.md#firmware-update) for the bucket URLs, the file
+names and the encrypted `.gbl` structure.
 
 ### Remote controls
 

@@ -1,129 +1,357 @@
 ---
 type: Protocol Reference
 title: Radio link
-description: "868 MHz link from the box to the receivers: modulation, frame coding, frame fields (rolling code, channel, checksum) and the per-device transmitter serials and counters kept in the box memory."
-tags: [teleco, radio, 868mhz, fsk, rolling-code, sdr]
+description: "The 868 MHz link from the box to the receivers, reverse-engineered end to end: modulation, frame coding, the rolling-code algorithm, what was ruled out, and how it was captured. Plus the box memory map and firmware-update flow learned along the way."
+tags: [teleco, radio, 868mhz, fsk, rolling-code, sdr, firmware, memory]
 sources:
   - id: on-air
-    title: On-air captures of a Daisy box with an RTL-SDR receiver, correlated with commands sent through the SDK
+    title: On-air captures of a Daisy box with an RTL-SDR receiver, each correlated with a command sent through the SDK and with the box's own serial and counter memory
   - id: box-memory
     title: Box memory read with the MEMORY command
+  - id: app
+    title: Daisy Teleco Android app, static analysis (firmware-update flow, remote pairing)
 ---
 
 # Radio link
 
 The box drives the receivers (motors, lights) over 868 MHz. The app never sees this
-link: it only sends commands to the box (see [Commands](commands.md)). Everything below
-comes from on-air captures of commands sent through the SDK, one command at a time.
+link: it only sends commands to the box over the cloud or the LAN (see
+[Commands](commands.md)), and the box emits the radio. Everything here comes from on-air
+captures of commands sent one at a time through the SDK, each correlated with the box's
+own memory (the transmitter serial and the per-device counter).
 
-Status: the physical layer, the frame coding, the fixed fields and the rolling code are
-all confirmed: hundreds of captured frames decode exactly, and live predictions for
-counters not yet seen (including a whole device held out and predicted from its serial
-alone) came back byte-exact against new on-air captures. The rolling code is only
-confirmed for counters 0..511 (see [Rolling code](#rolling-code)).
+**Status: fully reverse-engineered for the cases seen so far.** The physical layer, the
+frame coding, every field and the rolling-code algorithm are known and reproduce every
+captured frame byte-exact, as well as frames predicted ahead of a live capture. The one
+gap is counters ≥ 512 (see [Rolling code](#rolling-code)).
 
 ## Physical layer
 
 | | |
 |---|---|
 | Frequency | 868.30 MHz |
-| Modulation | 2-FSK, tones about ±20 kHz around the carrier |
-| Unit | 515 µs |
-| One command | about 1.6 s of continuous carrier, the same frame repeated back to back (27 to 32 times) |
+| Modulation | 2-FSK, the two tones about ±20 kHz around the carrier (deviation ~20 kHz) |
+| Occupied bandwidth | about ±22 kHz at −20 dB |
+| Symbol unit | 515 µs (about 1942 baud) |
+| One command | ~1.6 s of continuous carrier, one frame repeated back to back |
 
-The box transmits about 2 s after it accepts a command. A command the box refuses (for
-example a LAN connection it rejects) is not transmitted.
+The box starts transmitting about 2 s after it accepts a command. A command the box
+refuses — for example a LAN connection on port 400 that it drops — is **not** transmitted,
+and the device's counter does **not** advance.
+
+### Burst
+
+A command is one continuous carrier of about 1.6 s carrying the same frame 27 to 32
+times, back to back. Every repetition in a burst is bit-identical, which makes decoding
+reliable: a majority vote over the repetitions removes any single-frame bit error.
+
+The number of repetitions is not fixed: it drops as the frame carries more `1` bits.
+Each frame lasts `(84 + popcount) × 515 µs` (sync + 64 segments + gap, see below), and
+the ~1.6 s carrier holds however many fit. Across the captured bursts the frame count
+correlates −0.80 with the frame's `1`-bit count, and for 92 % of bursts it is within ±1
+of `1.609 s / ((84 + popcount) × 515 µs)`. This variable frame length is itself the proof
+that the bit layer is pulse-width coded (see [Frame coding](#frame-coding)).
 
 ## Frame coding
 
 ```
-sync      upper tone, 4 units
+sync      upper tone, 4 units (~2.06 ms)
 64 × segment, alternating lower / upper tone, starting with the lower one:
           1 unit = bit 0, 2 units = bit 1
-gap       lower tone, about 8.1 ms
+gap       lower tone, ~16 units (~8.1 ms)
 ```
 
-This is pulse-width coding: the frame length depends on its number of 1 bits, and a burst
-holds fewer frames when they carry more 1 bits. Manchester, biphase and NRZ readings of
-the same signal are all invalid or scatter the fields.
+The 64 bits are read MSB first into 8 bytes (frame bit 0 = the first segment after the
+sync = the MSB of byte 0).
 
-The 64 bits are read MSB first into 8 bytes.
+This is pulse-width coding on the per-segment duration. Every other line code was tested
+on 100 frames and ruled out:
+
+| Decoding tried | Result |
+|---|---|
+| **PWM, 1 unit = 0, 2 units = 1** (this one) | 100/100 valid; command and counter fall on fixed bit positions |
+| Manchester (both phases, with/without sync and gap) | 0/100 — every frame has 3–30 invalid half-bit pairs |
+| Biphase-mark, biphase-space, differential Manchester | 0/100 at every phase |
+| PWM pairs forced to a 3-unit total | 0/100 — pair totals are 2, 3 or 4 units, not constant |
+| NRZ at the unit rate, NRZI (with/without sync and gap, either bit order) | decode, but frames are not a fixed length, so the known fields land in a different place in each frame; only 1–17 bits stay constant and no command or counter field appears |
+| 4b/5b- or 8b/10b-like block codes | none exists: at the best phase the stream already uses every word with no run longer than 2 units, so there is no smaller codebook to find |
+
+Manchester, NRZ-with-a-block-code and n-b/m-b all run at a fixed rate and would give
+constant-length frames; the frames are not constant length, so the transmitter really
+sends variable-length, pulse-width-coded segments.
+
+## Frame structure
 
 | Bytes | Content |
 |---|---|
-| 0..4 | rolling code, see below |
+| 0..4 | rolling code — counter + a value derived from the serial, see [Rolling code](#rolling-code) |
 | 5 | always `00` |
-| 6 | high nibble `0`, low nibble = **channel** |
-| 7 | **checksum**: the eight bytes sum to 0 modulo 256 |
+| 6 | high nibble always `0`, low nibble = **channel** |
+| 7 | **checksum** |
 
-The channel is the `CHn` of the device command's `lowlevelCommand` (see
-[Devices](devices.md)): for example a dimmer sends `CH1` for `POWER ON` and for
-`LEVEL LEV4`, `CH4` for `LEV1`, `CH8` for `POWER OFF`; a rolling shutter sends `CH5` to
-open, `CH7` to stop, `CH8` to close.
+### Channel
 
-SDK: [`RadioFrame`][aioteleco.radio.RadioFrame] decodes and builds frames;
-`teleco radio-decode <hex>` decodes one.
+The low nibble of byte 6 is the `CHn` of the device command's `lowlevelCommand` (see
+[Devices](devices.md) for the full per-model list). The command's meaning is entirely in
+this channel; bytes 0..4 are identical for two different commands sent at the same
+counter. Examples observed:
+
+| Device model | Command | Channel |
+|---|---|---|
+| Dimmer (17) | `POWER ON`, `LEVEL LEV4` | CH1 |
+| Dimmer (17) | `LEVEL LEV3 / LEV2 / LEV1` | CH2 / CH3 / CH4 |
+| Dimmer (17) | `POWER OFF` | CH8 |
+| Rolling shutter (21) | `OPEN` / `STOP` / `CLOSE` | CH5 / CH7 / CH8 |
+| Slats (27) | `CLOSE` / `OPEN` / `STOP` | CH1 / CH4 / CH7 |
+
+`POWER ON` and `LEVEL LEV4` share CH1 on the dimmer, so the highest dimmer step and "on"
+are the same on air.
+
+### Checksum
+
+Byte 7 makes the eight bytes sum to zero modulo 256:
+
+```
+byte7 = (-(byte0 + byte1 + … + byte6)) & 0xFF
+```
+
+It is an **arithmetic** checksum, not a CRC. This was confirmed on 100 frames across all
+devices, and the CRC hypothesis was ruled out over the whole parameter space at once: a
+CRC is affine over GF(2), so a least-squares test asking whether each frame bit is an
+affine function of the others catches any CRC (planted CRC-8 and CRC-16 test bytes were
+detected 8/8 and 16/16), and the real frames carry only this one additive relation —
+no CRC-8 or CRC-16 with any polynomial, init, final XOR, reflection, span or bit order,
+and no nibble sum or XOR. The MSB-first byte order is required; reading each byte
+LSB-first breaks the sum.
+
+SDK: [`frame_checksum`][aioteleco.radio.frame_checksum], and
+[`RadioFrame.valid`][aioteleco.radio.RadioFrame] checks the sum and the always-zero bits.
 
 ## Transmitters and counters
 
-The box acts as one virtual transmitter per device, each learned by its receiver ("Did
-you delete the transmitter from the receiver?" in the app). Its memory holds:
+The box behaves as one virtual transmitter per device, each **learned by its receiver**
+like a physical remote would be (hence the app string "Did you delete the transmitter
+from the receiver?"). The identity comes from the box, not the app: the app addresses a
+device only by its `deviceIndex` (1, 2, 3, …) and a channel, and the box maps that index
+to a transmitter serial and keeps its rolling-code counter. Both live in the box memory
+(read-only, via the `MEMORY` command — see [Box memory](#box-memory-map)):
 
 | Address | Size | Content |
 |---|---|---|
-| 0 | 50 × 3 bytes | transmitter serials, 24-bit little-endian, consecutive values (the app's debug screen shows the first one as "first SN") |
-| 158 + 2 × device index | 2 bytes | last transmission counter sent for that device, big-endian |
+| 0 | 50 × 3 bytes | transmitter serials, 24-bit little-endian, **consecutive** values (the app's debug screen calls the first one "first SN") |
+| 158 + 2 × device index | 2 bytes | the last counter sent for that device, big-endian |
 
-The counter is per device: it increases by exactly 1 with each transmission of that
-device (checked live: one command moves the device's counter by one and leaves the
-others alone). SDK: `TelecoHub.radio_serials`, `TelecoHub.radio_counter`,
+* **Serial per device:** `serial = firstSN + (deviceIndex − 1)`. The serials are one
+  contiguous block, one per device slot.
+* **Counter per device:** it increases by exactly 1 with each transmission of that
+  device, and only that device (verified live: one command moved the target's counter by
+  one and left the others unchanged). The box stores the last value used.
+
+SDK: [`TelecoHub.radio_serials`][aioteleco.hub.TelecoHub.radio_serials],
+[`TelecoHub.radio_counter`][aioteleco.hub.TelecoHub.radio_counter], and
 `teleco radio-counter <device>`.
 
 ## Rolling code
 
-Bytes 0..4 (bits 0..39 of the frame) are `F(serial, counter)`, not a CRC or a known
-rolling-code format (KeeLoq, FAAC SLH, Nice FLOR-S, CAME Atomo and Somfy RTS were all
-ruled out): it is a small scrambler seeded from the serial and folded once per set
-counter bit.
+Bytes 0..4 (frame bits 0..39) are a deterministic function of the **serial** and the
+**counter** only — `F(serial, counter)`. It is not a CRC and matches no known format
+(KeeLoq / HCS200-300-301, FAAC SLH, Nice FLOR-S, CAME Atomo, Somfy RTS and BFT Mitto were
+all checked and ruled out, including under bit and byte reversal). It is a small
+software scrambler: a seed derived from the serial, folded once per set counter bit.
 
-The counter's ten low bits sit in the clear, directly at these frame bit positions
-(counter bit → frame bit):
+### Layout
+
+The counter's ten low bits are in the clear, each at a fixed frame bit (counter bit →
+frame bit):
 
 | Counter bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Frame bit | 6 | 5 | 3 | 0 | 39 | 22 | 20 | 36 | 35 | 34 |
 
-Counter bits above 9 have never been observed on air (the counters seen so far stay
-under 512), so their frame bit, rotation amount and XOR key are unknown; bits 14..17,
-28 and 29 are always 0 and are presumably among them.
+The other 24 bits hold a 24-bit word `W`, scattered into the frame in this order
+(cycle position → frame bit): `1, 2, 4, 7, 8, 9, 24, 25, 10, 26, 11, 27, 12, 13, 30, 31,
+32, 33, 18, 19, 21, 37, 38, 23`.
 
-The other 24 bits are one 24-bit word, built like this:
+Frame bits 14..17, 28 and 29 are always 0 in every capture; they are presumably the home
+of higher counter bits not yet exercised.
 
-1. **Seed:** permute the 24-bit serial (seed bit `p` = serial bit `(5 - p) mod 24`),
-   then XOR it with `0xD7D76C`.
+### Computing W
+
+1. **Seed** from the 24-bit serial: seed bit `p` = serial bit `(5 − p) mod 24`, then XOR
+   with `0xD7D76C`.
 2. **Fold in the counter:** for each set counter bit, from bit 8 down to bit 0, rotate
-   the word and XOR it with that bit's key:
+   the 24-bit word and XOR it with that bit's key:
 
    | Counter bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
    |---|---|---|---|---|---|---|---|---|---|
-   | Rotation | +1 | −1 | +1 | −1 | −1 | +1 | +1 | +1 | −1 |
+   | Rotate (left +, right −) | +1 | −1 | +1 | −1 | −1 | +1 | +1 | +1 | −1 |
    | XOR key | `000000` | `75AADB` | `AEE77D` | `51389A` | `081400` | `F4D279` | `9D6AA2` | `31388A` | `F56A3E` |
 
 3. **Output mask:** XOR the result with `0xDB8DC8`.
-4. **Scatter** the 24 bits into the frame, cycle position → frame bit: `1, 2, 4, 7, 8, 9,
-   24, 25, 10, 26, 11, 27, 12, 13, 30, 31, 32, 33, 18, 19, 21, 37, 38, 23`.
 
-This was found from the counter-difference pattern (two frames 2ⁿ apart differ by a
-fixed rotation-and-XOR that depends only on `n`), confirmed by inverting every captured
-frame back to the same seed per device, and the seeds across devices all being the same
-permuted-serial-XOR-constant. It reproduces every captured frame exactly (LED, three
-screens, their group and the slats) and every frame predicted ahead of a live capture,
-including for a device whose frames were entirely held out and predicted from its serial
-alone.
+This is the binary "square-and-multiply" shape — one conditional step per counter bit,
+most-significant first — with "rotate then XOR" as the step. For a fixed counter the
+whole thing is affine over GF(2), which is why it fell to linear algebra rather than
+needing side-channel work like KeeLoq did.
 
-SDK: [`rolling_code`][aioteleco.radio.rolling_code] computes these five bytes;
-[`RadioFrame.from_serial`][aioteleco.radio.RadioFrame.from_serial] builds the whole
-frame. Both raise for a counter above
-[`ROLLING_CODE_MAX_COUNTER`][aioteleco.radio.ROLLING_CODE_MAX_COUNTER] (511): capturing
-frames around a counter's first crossing of 512, 1024, and so on, would reveal each new
-counter bit's rotation and key the same way the first ten were found.
+SDK: [`rolling_code(serial, counter)`][aioteleco.radio.rolling_code] and
+[`RadioFrame.from_serial`][aioteleco.radio.RadioFrame.from_serial].
+
+### How it was found
+
+* Frames 16 counts apart (same low nibble) differ by a **constant** pattern that depends
+  only on the low nibble, in five classes: `{0,3,6,9,12,15}`, `{1,4,7,13}`,
+  `{2,8,11,14}`, `{5}`, `{10}`. That pointed at a per-counter-bit transform.
+* Every "+1" step turned out to be a fixed rotation plus a constant XOR chosen by the
+  number of trailing zeros of the new counter — no exceptions across 59 / 30 / 15 / 7
+  transition pairs for 0 / 1 / 2 / 3 trailing zeros. Odd counters are a pure rotation of
+  the frame before.
+* Inverting every frame of a device back through the steps gives one seed per device
+  (95/95 for the dimmer, 13/13 for each screen), and the six device seeds are all the
+  same permuted-serial-XOR-constant. That fixed the seed permutation and the constants,
+  and the three rotation amounts with only one witness each were pinned by the serial.
+
+### Validation
+
+* **126 / 126** captured frames (dimmer, three screens, their group, the slats)
+  reproduce byte-exact.
+* **6 / 6 live predictions** on counters never seen when the model was built came back
+  byte-exact against fresh on-air captures (the dimmer at 285/286/287, the group at 274,
+  two screens at 66 and 133), including a command on a different channel.
+* **Held out:** a random 10-fold left every learnable frame exact; a whole device
+  predicted from its serial alone (13/13, 8/8, 2/2, …) was exact.
+
+A parity relation over a fixed set of bits appeared to hold on the captured sample, but
+the exact model shows it does **not** hold for arbitrary serial and counter — it was a
+coincidence of the specific values captured, and is fully explained away by `F`.
+
+### Open: counters ≥ 512
+
+Counter bits 9..15 have never been observed on air (the highest counter seen is a few
+hundred), so their frame bit, rotation amount and XOR key are unknown and the SDK refuses
+a counter above [`ROLLING_CODE_MAX_COUNTER`][aioteleco.radio.ROLLING_CODE_MAX_COUNTER]
+(511). The keys for bits 0..8 show no pattern (no relation between them, no sparse form),
+so each higher bit must be read the same way the first ten were: capture the frames
+around a counter's first crossing of 512, then 1024, and so on.
+
+## Capturing the radio
+
+For anyone reproducing this:
+
+* **Receiver:** an RTL-SDR (RTL2832U + R820T) tunes 868 MHz. On Linux the kernel DVB
+  driver (`dvb_usb_rtl28xxu`, `rtl2832_sdr`) claims the dongle; `librtlsdr` detaches it
+  automatically, or blacklist those modules.
+* **Antenna:** a dipole with each leg ~8.5 cm (a quarter wavelength at 868 MHz), near the
+  box.
+* **Capture:** `rtl_sdr -f 868000000 -s 2400000 -g 40 out.cu8`, then send one known
+  command through the SDK (`teleco --transport local light on "…"`) so each burst is
+  labelled. Use only safe, reversible commands; the RTL-SDR can only receive.
+* **Decode:** mix down to 868.30 MHz, an FSK discriminator gives the tone, re-center it
+  per burst (the tuner drifts), then read the segment lengths as bits.
+* **Reliability:** the box occasionally refuses the LAN connection on port 400; retry the
+  send (a refused send transmits nothing and does not move the counter).
+
+`teleco radio-decode <8 hex bytes>` decodes a frame you have captured.
+
+## The box is a transceiver
+
+The box does not only transmit: it also **receives and decodes** Teleco remotes on
+868 MHz, so a physical remote speaks this same protocol to the receivers. The app can
+pair and unpair remotes on the box (`PAIR_TX` / `UNPAIR_TX` / `RESET_TX`, and
+`PAIR_BUTTON` / `UNPAIR_BUTTON`), and the box reports `TX_NUM` and `PAIRING_STATUS`
+status items. This is the path a from-scratch transmitter would use to enrol itself with
+a receiver.
+
+---
+
+## Related findings (not radio)
+
+Discovered while chasing the radio, kept here for the record. The canonical reference for
+the commands is [Commands](commands.md).
+
+### Box memory map
+
+`MEMORY` reads up to 50 bytes and the box writes the answer into its `DIAGNOSTIC` status
+item as space-separated decimal bytes with a leading space (`" 152 8 50"`), or `ERROR`.
+Over the setup access point the same read is `FMEMORY ADDR: %s NB: %sR` on
+`10.10.10.1:23`. Addresses seen in the app's debug screen, plus the radio tables:
+
+| Address | Bytes | Content |
+|---|---|---|
+| 0 | 150 | radio transmitter serials (50 × 24-bit LE) |
+| 158 + 2 × device index | 2 | last radio counter of the device (big-endian) |
+| 273 | 1 | time zone (`0`, `n` = +n h, `100 + n` = −n h) |
+| 290 | 6 | daylight-saving rule |
+| 576 / 640 / 950 | 50 each | Wi-Fi name / password / last Wi-Fi |
+| 823 / 832 | 7 each | latitude / longitude |
+| 842 / 876 / 910 | 10 / 10 / 15 | registration / account / virtual id |
+| 940 | 1 | region (1 US, 2 EU, 3 Japan, 4 other) |
+
+SDK: [`TelecoHub.read_box_memory`][aioteleco.hub.TelecoHub.read_box_memory] and
+`teleco memory <address> <count>`.
+
+### Firmware update
+
+**The box updates itself; the app never handles a firmware image.** It only sends one
+`UPDATE_BOARD` cloud command whose parameter is a space-separated list of links, and the
+box downloads and flashes the file on its own (over plain HTTP, from S3). The app triggers
+this when the box's reported version is older than a version hard-coded in the app; the
+one seen is `1.4.0.2` (firmware date 08-03-24).
+
+The parameter carries three link triplets, one per radio variant, so the box picks the
+file that matches its own radio:
+
+```
+L <url> N <file> V <version>   L916 <url> N916 <file> V916<version>   L8686 <url> N8686 <file> V8686<version>
+```
+
+`<version>` is the target with the dots removed (`1.4.0.2` → `1402`). `L*` is the URL,
+`N*` the file name the box saves, `V*` the version. The plain (868 MHz) variant has no
+suffix, `916` is the 916 MHz build, `8686` (file suffix `_P6`) an 868.6/"P6" model.
+
+**Where the images are.** Public Amazon S3 buckets, plain `http`, one set per hardware
+generation and region. HW2 is chosen when the cloud install's `workdays` field looks like
+`x.y.z` (`2.0.0` = HW2); the region defaults from the phone's time zone (EU below +7 h,
+else AU) and can be overridden in the app's advanced-update picker (EU / AU / two-step).
+
+| Set | Bucket | File names (for `1402`) |
+|---|---|---|
+| EU HW1 | `http://tlc-frmw-upd.s3.eu-central-1.amazonaws.com/` | `UPG_1402.gbl`, `UPG_1402_9.gbl`, `UPG_1402_P6.gbl` |
+| EU HW2 | `http://tlc-frmw-upd-hw2.s3.eu-central-1.amazonaws.com/` | `UPG_1402HW2.gbl`, `UPG_1402HW2_9.gbl`, `UPG_1402HW2_P6.gbl` |
+| AU HW1 / HW2 | `…-au.s3.ap-southeast-2.amazonaws.com/` (`tlc-frmw-upd-au`, `tlc-frmw-upd-hw2-au`) | same file names |
+| Two-step ("slim") | EU buckets | an `s` before the suffix: `UPG_1402s.gbl`, `UPG_1402s_9.gbl`, … |
+
+The links are anonymously downloadable (the plain and `_9` files return HTTP 200; some
+variants such as `_P6` are absent, HTTP 403). They are **Silicon Labs Gecko Bootloader
+images** (`.gbl`), which puts the radio on an **EFR32-family** SoC and means the rolling
+code runs in the box's own firmware, not in a licensed rolling-code chip.
+
+**The images are encrypted, so they are a dead end for reading the algorithm.** The `.gbl`
+is not plaintext: its tag structure is a header, an AES-CTR encryption init tag, the
+encrypted program-data tags, and a 64-byte ECDSA-P256 signature:
+
+```
+03a617eb HEADER_V3                 8 B
+fa0606fa ENC_INIT (AES-CTR nonce)  16 B
+f90707f9 ENC_PROGRAM_DATA          36 B  + 228216 B   (encrypted)
+f70a0af7 SIGNATURE_ECDSA_P256      64 B
+fc0404fc END (+CRC32)              4 B
+```
+
+Without the AES key the program data cannot be read, and the ECDSA signature prevents
+flashing a modified image, so recovering the rolling-code algorithm from the firmware
+would need a debug-port dump of the chip itself — out of scope, and unnecessary, since the
+[on-air analysis](#rolling-code) recovered the algorithm anyway.
+
+Progress is reported in the box's `UPDATE_STATUS` status item (`Starting the upgrade...`,
+`Downloading upgrade...`, `Loading upgrade...NN%`, `Applying the upgrade...`,
+`Upgrade completed successfully!`, or an error); the box gives up downloading after about
+6 minutes.
+
+SDK: [`TelecoHub.update_firmware`][aioteleco.hub.TelecoHub.update_firmware].
+
+### Other
+
+* `TEST_SCAN` is a **Wi-Fi** scan of the box setup screen, not a radio scan.
+* The "Memorize" button in the app targets model 16 sub-model 2 and only fires in a
+  Gibus-branded build, so it is dead code in the Daisy app.
