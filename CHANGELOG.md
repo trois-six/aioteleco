@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0](https://github.com/trois-six/aioteleco/compare/v0.2.0...v0.3.0) (2026-09-30)
+
+
+### Features
+
+* **cli:** add memory, radio-counter and radio-decode commands ([33f3448](https://github.com/trois-six/aioteleco/commit/33f344883f95c7a49aee4ffab00ac0428b3948e3))
+* **hub:** read the box memory and its radio serials and counters ([5b8cd1c](https://github.com/trois-six/aioteleco/commit/5b8cd1c41effe1b63cea52cb568ae6cadf45d781))
+* **radio:** decode counter bit 9, extending the rolling code to 1023 ([15df8d6](https://github.com/trois-six/aioteleco/commit/15df8d6c5dd6f01aa8dca2bd006dc6683986e4a3))
+* **radio:** decode the rolling code (bytes 0..4 of a frame) ([2b50945](https://github.com/trois-six/aioteleco/commit/2b50945f6d55e6ec7945cb7426cd515677007f57))
+* **radio:** model the 868 MHz frames the box sends to the receivers ([38330a9](https://github.com/trois-six/aioteleco/commit/38330a9e51cd8c44836fb336e246bc9217b3391a))
+
+
+### Bug Fixes
+
+* **radio:** cap the rolling-code counter at 511, the bits the model covers ([f60033b](https://github.com/trois-six/aioteleco/commit/f60033bdcf8684e1f1e161256877dd16f679e68e))
+
+
+### Documentation
+
+* **hub:** TEST_SCAN is a Wi-Fi scan, not a radio scan ([e93dd49](https://github.com/trois-six/aioteleco/commit/e93dd49498c5c1a4bccbb12af1795a48b1ba61c7))
+* **protocol:** document the radio link, the box memory map and firmware updates ([34b43b3](https://github.com/trois-six/aioteleco/commit/34b43b39abd32db959e88ad37dbb77c7e4f62e8d))
+* **radio:** document the rolling-code algorithm ([799e737](https://github.com/trois-six/aioteleco/commit/799e73769be838f20a9a3c5ad19e2d4d96b5d81d))
+* **radio:** mark counter bit 9 and the seed permutation as unverified ([5743423](https://github.com/trois-six/aioteleco/commit/5743423326d82c8d59956592a826fb11325f8e86))
+* **radio:** record counter bit 9 as solved (counters 0..1023) ([e819ee9](https://github.com/trois-six/aioteleco/commit/e819ee997d5ab9529b025e8085b91c82e4c8d0ca))
+* **radio:** record the batch dedup, transmitter offset and MEMORY scope ([2e82b1b](https://github.com/trois-six/aioteleco/commit/2e82b1bfc5b72ec3085ed2355ff2186b293679f6))
+* **radio:** record the full session findings ([af05ade](https://github.com/trois-six/aioteleco/commit/af05adec2769a37337db55f1b3ed176cfe44c1e7))
+* **readme:** refresh the PyPI badge ([7daff73](https://github.com/trois-six/aioteleco/commit/7daff7368f64fee2fab3eefb6eca9daf8e340f9e))
+
 ## [0.2.0](https://github.com/trois-six/aioteleco/compare/v0.1.0...v0.2.0) (2026-09-24)
 
 
