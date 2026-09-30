@@ -34,22 +34,28 @@ ROLLING_CODE_BYTES = 5
 # transmitter serial and the per-device counter, see aioteleco.system). Confirmed exact
 # against every captured frame and against live predictions for counters not yet seen
 # when the model was built. Unknown above ROLLING_CODE_MAX_COUNTER: counter bits 9..15
-# have never been observed on air, so their rotation amount and XOR key are unknown.
+# have never been observed on air, so their frame bit, rotation amount and XOR key are
+# unknown.
 #
-# The counter's ten low bits sit in the clear at these frame bit positions (bit k of the
-# counter -> this frame bit):
-_COUNTER_BITS = (6, 5, 3, 0, 39, 22, 20, 36, 35, 34)
-ROLLING_CODE_MAX_COUNTER = (1 << len(_COUNTER_BITS)) - 1
+# The counter's nine low bits sit in the clear at these frame bit positions (bit k of the
+# counter -> this frame bit). Bit 9 is presumably frame bit 34, never observed.
+_COUNTER_BITS = (6, 5, 3, 0, 39, 22, 20, 36, 35)
 
-# The other 24 bits of the rolling code are one 24-bit word, scattered into these frame
-# bits in this order (cycle position -> frame bit):
+# 24 other bits of the rolling code are one 24-bit word, scattered into these frame bits
+# in this order (cycle position -> frame bit). The remaining 7 (14..17, 28, 29, 34) were 0
+# in every capture.
 _CYCLE_BITS = (
     1, 2, 4, 7, 8, 9, 24, 25, 10, 26, 11, 27, 12, 13, 30, 31, 32, 33, 18, 19, 21, 37, 38, 23,
 )  # fmt: skip
 
 # That word starts from a seed derived from the serial (bit p of the seed = bit
 # (5 - p) mod 24 of the serial), XORed with a constant, then rotated and XORed once per
-# set counter bit (highest counter bit first), and finally XORed with a mask:
+# set counter bit (highest counter bit first), and finally XORed with a mask.
+#
+# The seed was fitted on one box's consecutive serials, so only their low bits varied and
+# the permutation is proven on those alone: on the other bits it folds into _SEED_XOR.
+# Exact for serials that differ from the fitted ones only in those low bits, untested for
+# a serial from another block (another box, a handheld remote).
 _SEED_XOR = 0xD7D76C
 _ROTATIONS = (1, -1, 1, -1, -1, 1, 1, 1, -1)  # per counter bit 0..8, +left/-right
 _STEP_KEYS = (
@@ -63,6 +69,8 @@ _STEP_KEYS = (
     0x31388A,
     0xF56A3E,
 )
+assert len(_COUNTER_BITS) == len(_ROTATIONS) == len(_STEP_KEYS)
+ROLLING_CODE_MAX_COUNTER = (1 << len(_STEP_KEYS)) - 1  # 511, the counters the model covers
 _OUTPUT_MASK = 0xDB8DC8
 _WORD_BITS = 24
 _WORD_MASK = (1 << _WORD_BITS) - 1

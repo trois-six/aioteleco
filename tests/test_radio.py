@@ -92,6 +92,12 @@ def test_rolling_code_is_the_frames_first_five_bytes() -> None:
     assert frame.valid
 
 
+def test_rolling_code_covers_counter_bits_0_to_8_only() -> None:
+    assert ROLLING_CODE_MAX_COUNTER == 511
+    with pytest.raises(ValueError, match=r"0\.\.511"):
+        rolling_code(TEST_SERIAL, 512)
+
+
 def test_rolling_code_invalid_inputs() -> None:
     with pytest.raises(ValueError, match="24-bit"):
         rolling_code(1 << 24, 0)
