@@ -147,6 +147,11 @@ to a transmitter serial and keeps its rolling-code counter. Both live in the box
 * **Counter per device:** it increases by exactly 1 with each transmission of that
   device, and only that device (verified live: one command moved the target's counter by
   one and left the others unchanged). The box stores the last value used.
+* **One transmission per command, not per frame or per step:** a burst repeats the same
+  frame ~30 times but the counter moves by one. And the box **collapses repeated commands
+  for the same device inside a single request** (one `feedthecommands`, or one scenario):
+  N identical steps for one device still transmit once and move the counter by one.
+  Advancing a counter by N therefore takes N separate requests, not one batch of N.
 
 SDK: [`TelecoHub.radio_serials`][aioteleco.hub.TelecoHub.radio_serials],
 [`TelecoHub.radio_counter`][aioteleco.hub.TelecoHub.radio_counter], and
@@ -281,8 +286,16 @@ For anyone reproducing this:
   labelled. Use only safe, reversible commands; the RTL-SDR can only receive.
 * **Decode:** mix down to 868.30 MHz, an FSK discriminator gives the tone, re-center it
   per burst (the tuner drifts), then read the segment lengths as bits.
+* **Transmitter offset:** the box carries at ~868.30 MHz, but a physical handheld remote
+  sits about 30 kHz lower (~868.27 MHz). The coding is identical; only the centre to mix
+  down to differs, so re-center per transmitter as well as per burst.
 * **Reliability:** the box occasionally refuses the LAN connection on port 400; retry the
   send (a refused send transmits nothing and does not move the counter).
+* **Driving the counter:** to reach a higher counter (e.g. to cross 512 and read a higher
+  counter bit), repeat a no-op command — `STOP` on an idle cover, or a light already in
+  the commanded state — one `feedthecommands` per step (see
+  [Transmitters and counters](#transmitters-and-counters)), reading the counter back now
+  and then. Each step is a real ~1.6 s transmission, so mind the 868 MHz duty cycle.
 
 `teleco radio-decode <8 hex bytes>` decodes a frame you have captured.
 
@@ -319,6 +332,15 @@ Over the setup access point the same read is `FMEMORY ADDR: %s NB: %sR` on
 | 823 / 832 | 7 each | latitude / longitude |
 | 842 / 876 / 910 | 10 / 10 / 15 | registration / account / virtual id |
 | 940 | 1 | region (1 US, 2 EU, 3 Japan, 4 other) |
+
+The command reads well past the debug screen's addresses — tens of thousands of bytes
+answer rather than `ERROR`, holding config records (scenarios, timers) then filler and
+zeros. But **address 0 is the serial table**, so `MEMORY` maps the box's **data NVM**, not
+its program flash. The rolling-code key table is a code constant in flash, so it does not
+appear in this space and cannot be read with `MEMORY` — a scan for the known keys finds
+nothing. (It does expose the account and Wi-Fi fields above, so it reads more than the
+debug screen shows.) Reading the keys would need a debug-port dump of the chip, same as
+[the firmware images](#firmware-update).
 
 SDK: [`TelecoHub.read_box_memory`][aioteleco.hub.TelecoHub.read_box_memory] and
 `teleco memory <address> <count>`.
