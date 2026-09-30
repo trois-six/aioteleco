@@ -22,8 +22,9 @@ own memory (the transmitter serial and the per-device counter).
 
 **Status: fully reverse-engineered for the cases seen so far.** The physical layer, the
 frame coding, every field and the rolling-code algorithm are known and reproduce every
-captured frame byte-exact, as well as frames predicted ahead of a live capture. The one
-gap is counters ≥ 512 (see [Rolling code](#rolling-code)).
+captured frame byte-exact, as well as frames predicted ahead of a live capture. Two
+points are open: counters ≥ 512, and serials from outside the box's block (see
+[Open questions](#open-questions)).
 
 ## Physical layer
 
@@ -161,24 +162,30 @@ software scrambler: a seed derived from the serial, folded once per set counter 
 
 ### Layout
 
-The counter's ten low bits are in the clear, each at a fixed frame bit (counter bit →
+The counter's nine low bits are in the clear, each at a fixed frame bit (counter bit →
 frame bit):
 
 | Counter bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Frame bit | 6 | 5 | 3 | 0 | 39 | 22 | 20 | 36 | 35 | 34 |
+| Frame bit | 6 | 5 | 3 | 0 | 39 | 22 | 20 | 36 | 35 | (34) |
 
-The other 24 bits hold a 24-bit word `W`, scattered into the frame in this order
+Bits 0..8 are observed. Bit 9 has never been set in a capture (no counter reached 512);
+frame bit 34 is presumed from the run 36, 35 of bits 7 and 8.
+
+24 other bits hold a 24-bit word `W`, scattered into the frame in this order
 (cycle position → frame bit): `1, 2, 4, 7, 8, 9, 24, 25, 10, 26, 11, 27, 12, 13, 30, 31,
 32, 33, 18, 19, 21, 37, 38, 23`.
 
-Frame bits 14..17, 28 and 29 are always 0 in every capture; they are presumably the home
-of higher counter bits not yet exercised.
+The remaining frame bits, 34, 14..17, 28 and 29, are 0 in every capture. That is exactly
+7 bits, as many as counter bits 9..15 of the 16-bit counter the box stores: consistent
+with a 16-bit counter on air, with its high bits in the clear there, but unverified.
 
 ### Computing W
 
 1. **Seed** from the 24-bit serial: seed bit `p` = serial bit `(5 − p) mod 24`, then XOR
-   with `0xD7D76C`.
+   with `0xD7D76C`. This permutation is only proven on the low serial bits, the ones that
+   varied across the fitted serials; on the others it is folded into the constant (see
+   [Open questions](#open-questions)).
 2. **Fold in the counter:** for each set counter bit, from bit 8 down to bit 0, rotate
    the 24-bit word and XOR it with that bit's key:
 
@@ -208,8 +215,10 @@ SDK: [`rolling_code(serial, counter)`][aioteleco.radio.rolling_code] and
   the frame before.
 * Inverting every frame of a device back through the steps gives one seed per device
   (95/95 for the dimmer, 13/13 for each screen), and the six device seeds are all the
-  same permuted-serial-XOR-constant. That fixed the seed permutation and the constants,
-  and the three rotation amounts with only one witness each were pinned by the serial.
+  same permuted-serial-XOR-constant. That fixed the constants and the permutation of the
+  serial bits that vary across those six serials (one box's consecutive block, so only
+  the low few), and the three rotation amounts with only one witness each were pinned by
+  the serial.
 
 ### Validation
 
@@ -219,20 +228,34 @@ SDK: [`rolling_code(serial, counter)`][aioteleco.radio.rolling_code] and
   byte-exact against fresh on-air captures (the dimmer at 285/286/287, the group at 274,
   two screens at 66 and 133), including a command on a different channel.
 * **Held out:** a random 10-fold left every learnable frame exact; a whole device
-  predicted from its serial alone (13/13, 8/8, 2/2, …) was exact.
+  predicted from its serial alone (13/13, 8/8, 2/2, …) was exact. That serial was from
+  the same block as the others, so for the seed it only checks the low serial bits.
 
 A parity relation over a fixed set of bits appeared to hold on the captured sample, but
 the exact model shows it does **not** hold for arbitrary serial and counter — it was a
 coincidence of the specific values captured, and is fully explained away by `F`.
 
-### Open: counters ≥ 512
+### Open questions
 
-Counter bits 9..15 have never been observed on air (the highest counter seen is a few
-hundred), so their frame bit, rotation amount and XOR key are unknown and the SDK refuses
-a counter above [`ROLLING_CODE_MAX_COUNTER`][aioteleco.radio.ROLLING_CODE_MAX_COUNTER]
-(511). The keys for bits 0..8 show no pattern (no relation between them, no sparse form),
-so each higher bit must be read the same way the first ten were: capture the frames
-around a counter's first crossing of 512, then 1024, and so on.
+**Counters ≥ 512.** Counter bits 9..15 have never been observed on air (the highest
+counter seen is a few hundred), so their frame bit, rotation amount and XOR key are
+unknown and the SDK refuses a counter above
+[`ROLLING_CODE_MAX_COUNTER`][aioteleco.radio.ROLLING_CODE_MAX_COUNTER] (511). Bit 9 at
+frame bit 34 and bits 9..15 in the seven always-zero bits are guesses (see
+[Layout](#layout)). The keys for bits 0..8 show no pattern (no relation between them, no
+sparse form), so each higher bit must be read the same way the first nine were: capture
+the frames around a counter's first crossing of 512, then 1024, and so on.
+
+**Serials from another block.** The box's transmitter serials are consecutive
+(`firstSN + deviceIndex − 1`) and the model was fitted on the handful of devices of one
+box, so only the low serial bits varied across the fitted seeds. The rule "seed bit `p` =
+serial bit `(5 − p) mod 24`" is proven on those bits only: a serial bit that is the same
+for every fitted serial contributes a constant, so any permutation of it is
+indistinguishable from the XOR constant `0xD7D76C`, which absorbs it. The model is exact
+for serials that differ from the fitted ones only in those low bits, and untested for a
+serial from another block — another box, a physical Teleco handheld remote, or a new
+serial one would pair. The natural reversal is the simplest extension, not a proven one;
+frames from a serial of another block, such as a handheld remote, would test it.
 
 ## Capturing the radio
 
