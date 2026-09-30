@@ -365,7 +365,7 @@ class TelecoHub:
         )
 
     async def test_scan(self, installation: Installation) -> SendResult:
-        """``TEST_SCAN`` (radio scan test of the box setup screen)."""
+        """``TEST_SCAN`` (Wi-Fi scan of the box setup screen)."""
         return await self._box(
             installation, box_command(installation.id_installation_device, "TEST_SCAN")
         )
