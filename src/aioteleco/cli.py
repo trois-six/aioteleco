@@ -47,6 +47,7 @@ from .exceptions import TelecoError
 from .hub import TelecoHub
 from .local.crypto import decrypt
 from .models import Installation
+from .radio import RadioFrame
 from .transport import SendResult, TransportMode
 
 CONFIG_PATH = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser() / (
@@ -243,6 +244,42 @@ def box() -> None:
         )
 
     _run(go, load=False)
+
+
+@app.command()
+def memory(
+    address: int,
+    count: Annotated[int, typer.Argument(min=1, max=50)],
+) -> None:
+    """Read bytes of the box's memory (read-only `MEMORY` command)."""
+
+    async def go(hub: TelecoHub, inst: Installation) -> None:
+        data = await hub.read_box_memory(inst, address, count)
+        _print({"address": address, "data": data.hex(" ")}, data.hex(" ").upper())
+
+    _run(go, load=False)
+
+
+@app.command("radio-counter")
+def radio_counter(device: str) -> None:
+    """Show the last 868 MHz transmission counter the box sent for a device."""
+
+    async def go(hub: TelecoHub, _: Installation) -> None:
+        counter = await hub.radio_counter(hub.device(device))
+        _print({"device": device, "counter": counter}, str(counter))
+
+    _run(go)
+
+
+@app.command("radio-decode")
+def radio_decode(frame: str) -> None:
+    """Decode an 868 MHz frame given as 8 hex bytes."""
+    radio = RadioFrame.from_hex(frame)
+    _print(
+        {"rolling_code": radio.rolling_code.hex(), "channel": radio.channel, "valid": radio.valid},
+        f"rolling code: {radio.rolling_code.hex(' ').upper()}\nchannel: CH{radio.channel}"
+        f"\nvalid: {radio.valid}",
+    )
 
 
 @app.command()
