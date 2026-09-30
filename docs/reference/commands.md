@@ -1,4 +1,4 @@
-# Commands, system and timers
+# Commands, system, timers and radio
 
 Helpers that build the commands sent to devices and to the box. Most users go through
 [`TelecoHub`][aioteleco.hub.TelecoHub] and the device classes instead.
@@ -8,3 +8,5 @@ Helpers that build the commands sent to devices and to the box. Most users go th
 ::: aioteleco.system
 
 ::: aioteleco.timers
+
+::: aioteleco.radio

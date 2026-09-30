@@ -53,7 +53,7 @@ nav:
       - Models: reference/models.md
       - Exceptions: reference/exceptions.md
       - Transport: reference/transport.md
-      - Commands, system and timers: reference/commands.md
+      - Commands, system, timers and radio: reference/commands.md
       - Cloud API: reference/cloud.md
       - Local channel: reference/local.md
       - Diagnostics and constants: reference/misc.md
