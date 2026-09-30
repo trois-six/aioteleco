@@ -28,13 +28,14 @@ References such as `DaisyApplication#sendCommand` point to the class and method 
 app. Methods jadx cannot decompile (`sendCommand`, `DeviceFactory#castDevice`,
 `Utils#customGraphicCommandParam`) were read from smali.
 
-Validation status: everything here comes from the app's code. Items confirmed on real
+Validation status: everything here comes from the app's code, except the
+[Radio link](radio.md), which comes from on-air captures. Items confirmed on real
 hardware are marked **✅ verified**; the rest is **not yet verified**.
 
 ## Architecture in one picture
 
 ```
- phone app ──HTTPS──▶ tmate.telecoautomation.com ──(box's own link)──▶ Daisy box ──radio──▶ motors / lights
+ phone app ──HTTPS──▶ tmate.telecoautomation.com ──(box's own link)──▶ Daisy box ──868 MHz──▶ motors / lights
      │                                                                    ▲
      └──────────── TCP :400 on the home LAN (commands only) ──────────────┘
 ```

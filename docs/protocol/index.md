@@ -12,3 +12,4 @@ okf_version: "0.2"
 * [Commands](commands.md) - How a device command is selected from the cloud command list and encoded, delivered and acknowledged, plus scenarios, system (box) commands and timers.
 * [Devices](devices.md) - Device models and sub-models with their app and SDK classes, device flags, and the status items reported by devices and by the box.
 * [Local channels](local.md) - LAN channel to the box on TCP port 400 (payload, obfuscation, diagnostic) and the plain-text setup access point.
+* [Radio link](radio.md) - 868 MHz link from the box to the receivers: modulation, frame coding, frame fields (rolling code, channel, checksum) and the per-device transmitter serials and counters kept in the box memory.

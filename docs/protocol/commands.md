@@ -142,15 +142,51 @@ the cloud.
 | `DEL_SCEN` | scenario id (decimal) | | `delete_scenario` |
 | `UP_INST_NAME` | installation name | | `rename_installation` |
 | `GET_TIME`, `GET_SIGNAL`, `GET_VERSION`, `GET_INFO`, `GET_DIAGNOSTIC` | — | the box refreshes its status items (`CURRENT_TIME`, `SIGNAL`, `DIAGNOSTIC`…); the ack is `ACK` | `query_box` |
-| `TEST_SCAN` | — | | `test_scan` |
+| `TEST_SCAN` | — | Wi-Fi scan of the box setup screen | `test_scan` |
 | `SYNC_BOARD`, `END_SYNC` | — | frame a full re-send, see [Board sync](#board-sync) | `sync_box` |
 | `SET_TIME` | value (no caller in the app) | | `set_box_time` |
 | `SET_WIFI` | `SSID: x PASS: y` | | `set_wifi` |
 | `AP_CHANNEL_CMD` | `00R` read; write `20W` (static) or `06W` | | `read_ap_channel`, `set_ap_channel` |
-| `MEMORY` | `ADDR: %s NB: %sR` | debug screen | `read_memory` |
-| `UPDATE_BOARD` | firmware URL | flashes the box | `update_firmware` |
+| `MEMORY` | `ADDR: <decimal address> NB: <count, 2 digits>R` | read-only; the answer lands in the box's `DIAGNOSTIC` status item, see [Box memory](#box-memory) | `read_memory`, `read_box_memory` |
+| `UPDATE_BOARD` | firmware links, see [Firmware update](#firmware-update) | flashes the box | `update_firmware` |
 
 Any action can also be sent with `TelecoHub.send_system(installation, action, param)`.
+
+### Box memory
+
+`MEMORY` reads up to 50 bytes. The box writes the answer to its `DIAGNOSTIC` status item
+as space-separated decimal bytes with a leading space (`" 152 8 50"`), or `ERROR`. Over
+the setup access point the same read is `FMEMORY ADDR: %s NB: %sR` (see
+[Local channels](local.md)). Addresses used by the app's debug screen, plus the radio
+tables (see [Radio link](radio.md)):
+
+| Address | Bytes | Content |
+|---|---|---|
+| 0 | 150 | radio transmitter serials, 50 × 24-bit little-endian ("first SN" = the first one) |
+| 158 + 2 × device index | 2 | last radio transmission counter of the device, big-endian |
+| 273 | 1 | time zone: `0`, `n` = +n h, `100 + n` = −n h |
+| 290 | 6 | daylight saving time rule |
+| 576 | 50 | Wi-Fi name |
+| 640 | 50 | Wi-Fi password |
+| 823, 832 | 7, 7 | latitude, longitude |
+| 842, 876, 910 | 10, 10, 15 | registration, account and virtual ids |
+| 940 | 1 | region: 1 US, 2 EU, 3 Japan, 4 other |
+| 950 | 50 | last Wi-Fi |
+
+### Firmware update
+
+The box downloads and flashes its firmware itself; the app only sends `UPDATE_BOARD`
+with a space-separated list of links, one triplet per radio variant:
+
+```
+L <url> N <file> V <version>  L916 <url> N916 <file> V916<version>  L8686 <url> N8686 <file> V8686<version>
+```
+
+`<version>` is the target version without dots (`1.4.0.2` → `1402`). The files are
+Silicon Labs Gecko Bootloader images (`.gbl`, encrypted and signed) published on public
+Amazon S3 buckets, one per hardware generation and region. Progress is reported in the
+box's `UPDATE_STATUS` status item (`Downloading upgrade...`, `Loading upgrade...NN%`,
+`Applying the upgrade...`, `Upgrade completed successfully!` or an error).
 
 ### Remote controls
 
