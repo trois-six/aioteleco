@@ -22,9 +22,9 @@ own memory (the transmitter serial and the per-device counter).
 
 **Status: fully reverse-engineered for the cases seen so far.** The physical layer, the
 frame coding, every field and the rolling-code algorithm are known and reproduce every
-captured frame byte-exact, as well as frames predicted ahead of a live capture. Two
-points are open: counters ≥ 512, and serials from outside the box's block (see
-[Open questions](#open-questions)).
+captured frame byte-exact, as well as frames predicted ahead of a live capture. The
+rolling code is solved for counters 0..1023; two points are open: counters ≥ 1024, and
+serials from outside the box's block (see [Open questions](#open-questions)).
 
 ## Physical layer
 
@@ -162,22 +162,22 @@ software scrambler: a seed derived from the serial, folded once per set counter 
 
 ### Layout
 
-The counter's nine low bits are in the clear, each at a fixed frame bit (counter bit →
+The counter's ten low bits are in the clear, each at a fixed frame bit (counter bit →
 frame bit):
 
 | Counter bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Frame bit | 6 | 5 | 3 | 0 | 39 | 22 | 20 | 36 | 35 | (34) |
+| Frame bit | 6 | 5 | 3 | 0 | 39 | 22 | 20 | 36 | 35 | 34 |
 
-Bits 0..8 are observed. Bit 9 has never been set in a capture (no counter reached 512);
-frame bit 34 is presumed from the run 36, 35 of bits 7 and 8.
+Bit 9 (frame bit 34) was confirmed by driving a transmitter past counter 512 on air and
+reading its frames, on two different serials.
 
 24 other bits hold a 24-bit word `W`, scattered into the frame in this order
 (cycle position → frame bit): `1, 2, 4, 7, 8, 9, 24, 25, 10, 26, 11, 27, 12, 13, 30, 31,
 32, 33, 18, 19, 21, 37, 38, 23`.
 
-The remaining frame bits, 34, 14..17, 28 and 29, are 0 in every capture. That is exactly
-7 bits, as many as counter bits 9..15 of the 16-bit counter the box stores: consistent
+The remaining frame bits, 14..17, 28 and 29, are 0 in every capture. That is exactly
+6 bits, as many as counter bits 10..15 of the 16-bit counter the box stores: consistent
 with a 16-bit counter on air, with its high bits in the clear there, but unverified.
 
 ### Computing W
@@ -186,13 +186,13 @@ with a 16-bit counter on air, with its high bits in the clear there, but unverif
    with `0xD7D76C`. This permutation is only proven on the low serial bits, the ones that
    varied across the fitted serials; on the others it is folded into the constant (see
    [Open questions](#open-questions)).
-2. **Fold in the counter:** for each set counter bit, from bit 8 down to bit 0, rotate
+2. **Fold in the counter:** for each set counter bit, from bit 9 down to bit 0, rotate
    the 24-bit word and XOR it with that bit's key:
 
-   | Counter bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-   |---|---|---|---|---|---|---|---|---|---|
-   | Rotate (left +, right −) | +1 | −1 | +1 | −1 | −1 | +1 | +1 | +1 | −1 |
-   | XOR key | `000000` | `75AADB` | `AEE77D` | `51389A` | `081400` | `F4D279` | `9D6AA2` | `31388A` | `F56A3E` |
+   | Counter bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+   |---|---|---|---|---|---|---|---|---|---|---|
+   | Rotate (left +, right −) | +1 | −1 | +1 | −1 | −1 | +1 | +1 | +1 | −1 | −1 |
+   | XOR key | `000000` | `75AADB` | `AEE77D` | `51389A` | `081400` | `F4D279` | `9D6AA2` | `31388A` | `F56A3E` | `563A96` |
 
 3. **Output mask:** XOR the result with `0xDB8DC8`.
 
@@ -219,6 +219,11 @@ SDK: [`rolling_code(serial, counter)`][aioteleco.radio.rolling_code] and
   serial bits that vary across those six serials (one box's consecutive block, so only
   the low few), and the three rotation amounts with only one witness each were pinned by
   the serial.
+* Counter bit 9 was then read directly: a transmitter was driven past counter 512 on air
+  (repeating a no-op command so nothing moved), and the frames at 512 and above gave the
+  bit-9 step. One serial cannot separate its rotation from its key, so a second serial —
+  a handheld remote and the box, each driven past 512 — pinned the rotation to −1 and the
+  key to `563A96`.
 
 ### Validation
 
@@ -230,6 +235,9 @@ SDK: [`rolling_code(serial, counter)`][aioteleco.radio.rolling_code] and
 * **Held out:** a random 10-fold left every learnable frame exact; a whole device
   predicted from its serial alone (13/13, 8/8, 2/2, …) was exact. That serial was from
   the same block as the others, so for the seed it only checks the low serial bits.
+* **Counter bit 9:** frames captured across counter 512 on two serials (a few dozen on a
+  handheld remote, several on the box) reproduce byte-exact with the bit-9 step, and every
+  counter 0..511 is unchanged.
 
 A parity relation over a fixed set of bits appeared to hold on the captured sample, but
 the exact model shows it does **not** hold for arbitrary serial and counter — it was a
@@ -237,14 +245,13 @@ coincidence of the specific values captured, and is fully explained away by `F`.
 
 ### Open questions
 
-**Counters ≥ 512.** Counter bits 9..15 have never been observed on air (the highest
-counter seen is a few hundred), so their frame bit, rotation amount and XOR key are
-unknown and the SDK refuses a counter above
-[`ROLLING_CODE_MAX_COUNTER`][aioteleco.radio.ROLLING_CODE_MAX_COUNTER] (511). Bit 9 at
-frame bit 34 and bits 9..15 in the seven always-zero bits are guesses (see
-[Layout](#layout)). The keys for bits 0..8 show no pattern (no relation between them, no
-sparse form), so each higher bit must be read the same way the first nine were: capture
-the frames around a counter's first crossing of 512, then 1024, and so on.
+**Counters ≥ 1024.** Counter bits 10..15 have never been observed on air, so their frame
+bit, rotation amount and XOR key are unknown and the SDK refuses a counter above
+[`ROLLING_CODE_MAX_COUNTER`][aioteleco.radio.ROLLING_CODE_MAX_COUNTER] (1023). Bits 10..15
+presumably live in the six always-zero frame bits (14..17, 28, 29; see [Layout](#layout)).
+The keys for bits 0..9 show no pattern (no relation between them, no sparse form), so each
+higher bit must be read the same way the first ten were: capture the frames around a
+counter's first crossing of 1024, then 2048, and so on.
 
 **Serials from another block.** The box's transmitter serials are consecutive
 (`firstSN + deviceIndex − 1`) and the model was fitted on the handful of devices of one
@@ -254,8 +261,11 @@ for every fitted serial contributes a constant, so any permutation of it is
 indistinguishable from the XOR constant `0xD7D76C`, which absorbs it. The model is exact
 for serials that differ from the fitted ones only in those low bits, and untested for a
 serial from another block — another box, a physical Teleco handheld remote, or a new
-serial one would pair. The natural reversal is the simplest extension, not a proven one;
-frames from a serial of another block, such as a handheld remote, would test it.
+serial one would pair. A handheld remote has since been captured, and its frames are
+self-consistent with a single serial under this rule; but that serial does not match the
+code printed on the remote, so an independent serial has still not confirmed the
+permutation — either the printed code is not the radio serial, or the rule is only one of
+several that fit the block it was learned on.
 
 ## Capturing the radio
 
