@@ -563,3 +563,72 @@ async def test_pair_remote(hub: TelecoHub, cloud: FakeCloud) -> None:
     )
     assert first["commandParam"].startswith("7001N02 ")
     assert (second["commandAction"], second["commandParam"]) == ("UNPAIR_TX", "7001")
+
+
+# --- box memory and radio ---------------------------------------------------------------
+
+
+def memory_box(cloud: FakeCloud, answers: dict[str, str], before: str = " 9 9") -> None:
+    """Answer MEMORY reads in the box's DIAGNOSTIC item, keyed by the command param."""
+
+    def status(body: JsonDict) -> JsonDict:
+        if body.get("idInstallationDevice") != 789:
+            return envelope({"statusitemList": []})
+        sent = [c["commandParam"] for c in feeds(cloud) if c["commandAction"] == "MEMORY"]
+        value = answers[sent[-1]] if sent else before
+        item = {"statusitemCode": "DIAGNOSTIC", "statusItem": "DIAGNOSTIC", "statusValue": value}
+        return envelope({"statusitemList": [item]})
+
+    cloud.handlers[Endpoint.STATUS_DEVICE_LIST] = status
+    cloud.default_ack = tmate("ACK")
+
+
+@pytest.fixture(autouse=True)
+def fast_memory_poll(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("aioteleco.hub._MEMORY_POLL_INTERVAL", 0)
+
+
+async def test_read_box_memory(hub: TelecoHub, cloud: FakeCloud) -> None:
+    await hub.connect()
+    inst = hub.installation()
+    memory_box(cloud, {"ADDR: 273 NB: 03R": " 1 2 255"})
+    assert await hub.read_box_memory(inst, 273, 3) == b"\x01\x02\xff"
+    (cmd,) = feeds(cloud)
+    assert (cmd["commandAction"], cmd["idInstallationDevice"]) == ("MEMORY", 789)
+    with pytest.raises(ValueError, match=r"1\.\.50"):
+        await hub.read_box_memory(inst, 0, 51)
+
+
+async def test_read_box_memory_errors(hub: TelecoHub, cloud: FakeCloud) -> None:
+    await hub.connect()
+    inst = hub.installation()
+    memory_box(cloud, {"ADDR: 1 NB: 02R": "ERROR", "ADDR: 2 NB: 02R": " 1 2 3"})
+    with pytest.raises(TelecoCommandError, match="failed"):
+        await hub.read_box_memory(inst, 1, 2)
+    with pytest.raises(TelecoCommandError, match="3 bytes"):
+        await hub.read_box_memory(inst, 2, 2)
+
+
+async def test_read_box_memory_same_answer_waits(hub: TelecoHub, cloud: FakeCloud) -> None:
+    await hub.connect()
+    memory_box(cloud, {"ADDR: 5 NB: 02R": " 9 9"})  # same as the value already there
+    assert await hub.read_box_memory(hub.installation(), 5, 2, max_wait=0.05) == b"\x09\x09"
+
+
+async def test_radio_counter(hub: TelecoHub, cloud: FakeCloud) -> None:
+    data = await loaded(hub)
+    slats = slats_of(data)
+    address = 158 + 2 * slats.info.device_index
+    memory_box(cloud, {f"ADDR: {address} NB: 02R": " 1 28"})
+    assert await hub.radio_counter(slats) == 0x011C
+
+
+async def test_radio_serials(hub: TelecoHub, cloud: FakeCloud) -> None:
+    await hub.connect()
+    table = b"".join((0x123400 + i).to_bytes(3, "little") for i in range(50))
+    answers = {
+        f"ADDR: {a} NB: {n:02d}R": "".join(f" {b}" for b in table[a : a + n])
+        for a, n in ((0, 48), (48, 48), (96, 48), (144, 6))
+    }
+    memory_box(cloud, answers)
+    assert await hub.radio_serials(hub.installation()) == [0x123400 + i for i in range(50)]

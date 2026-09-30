@@ -8,6 +8,7 @@ through the cloud.
 from __future__ import annotations
 
 from .commands import WireCommand, system_command
+from .exceptions import TelecoCommandError
 from .models import Command, DeviceInfo
 
 # CommandDao#getBoardDeviceCodeName: the short name of a device model on the box.
@@ -95,8 +96,34 @@ def set_ap_channel_command(box_device_id: int, *, static: bool) -> WireCommand:
     return system_command(box_device_id, "AP_CHANNEL_CMD", "20W" if static else "06W")
 
 
+# Box memory (``MEMORY`` reads, answered in the box's DIAGNOSTIC status item).
+MEMORY_READ_MAX = 50  # bytes per read
+# Radio transmitter serials: one 24-bit little-endian serial per slot, consecutive values.
+RADIO_SERIALS_ADDRESS = 0
+RADIO_SERIAL_SLOTS = 50
+# Radio transmission counters: the last counter sent for device index ``i``, 16-bit
+# big-endian at ``RADIO_COUNTERS_ADDRESS + 2 * i``.
+RADIO_COUNTERS_ADDRESS = 158
+
+
 def read_memory_command(box_device_id: int, address: str, count: str) -> WireCommand:
     return system_command(box_device_id, "MEMORY", f"ADDR: {address} NB: {count}R")
+
+
+def parse_memory(value: str, count: int) -> bytes:
+    """A ``MEMORY`` answer: space-separated decimal bytes (``ERROR`` when refused)."""
+    try:
+        data = bytes(int(part) for part in value.split())
+    except ValueError:
+        raise TelecoCommandError(f"box memory read failed: {value.strip()!r}") from None
+    if len(data) != count:
+        raise TelecoCommandError(f"box memory read returned {len(data)} bytes, not {count}")
+    return data
+
+
+def parse_radio_serials(data: bytes) -> list[int]:
+    """The radio serial table (3 bytes per slot, little-endian)."""
+    return [int.from_bytes(data[i : i + 3], "little") for i in range(0, len(data) - 2, 3)]
 
 
 def set_time_command(box_device_id: int, value: str) -> WireCommand:

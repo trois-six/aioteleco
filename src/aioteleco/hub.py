@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 
@@ -26,10 +27,16 @@ from .models import (
     Timer,
 )
 from .system import (
+    MEMORY_READ_MAX,
     QUERY_ACTIONS,
+    RADIO_COUNTERS_ADDRESS,
+    RADIO_SERIAL_SLOTS,
+    RADIO_SERIALS_ADDRESS,
     box_command,
     delete_scenario_command,
     get_feedback_command,
+    parse_memory,
+    parse_radio_serials,
     read_ap_channel_command,
     read_memory_command,
     scenario_string,
@@ -46,6 +53,7 @@ from .timers import del_timer_command, up_schedule_command, up_timers_command
 from .transport import CommandSender, SendResult, TransportMode
 
 _LOGGER = logging.getLogger(__name__)
+_MEMORY_POLL_INTERVAL = 1.0  # seconds between DIAGNOSTIC polls after a MEMORY read
 
 
 @dataclass(slots=True)
@@ -409,6 +417,47 @@ class TelecoHub:
         return await self._box(
             installation, read_memory_command(installation.id_installation_device, address, count)
         )
+
+    async def read_box_memory(
+        self, installation: Installation, address: int, count: int, *, max_wait: float = 20.0
+    ) -> bytes:
+        """Read ``count`` (1..50) bytes of the box's memory at ``address``.
+
+        The box answers in its ``DIAGNOSTIC`` status item, polled until it changes. Reading
+        the same bytes twice in a row leaves it unchanged: the call then returns after
+        ``max_wait`` seconds.
+        """
+        if not 1 <= count <= MEMORY_READ_MAX:
+            raise ValueError(f"count must be in 1..{MEMORY_READ_MAX}")
+        before = await self._diagnostic(installation)
+        await self.read_memory(installation, str(address), f"{count:02d}")
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max_wait
+        value = before
+        while value == before and loop.time() < deadline:
+            await asyncio.sleep(_MEMORY_POLL_INTERVAL)
+            value = await self._diagnostic(installation)
+        return parse_memory(value, count)
+
+    async def _diagnostic(self, installation: Installation) -> str:
+        items = await self.api.device_status(installation, installation.id_installation_device)
+        return next((i.status_value for i in items if i.code == StatusItemCode.DIAGNOSTIC), "")
+
+    async def radio_serials(self, installation: Installation) -> list[int]:
+        """The box's radio transmitter serials (one per slot, see :mod:`aioteleco.radio`)."""
+        size = 3 * RADIO_SERIAL_SLOTS
+        data = b""
+        for offset in range(0, size, 48):  # whole slots per read
+            data += await self.read_box_memory(
+                installation, RADIO_SERIALS_ADDRESS + offset, min(48, size - offset)
+            )
+        return parse_radio_serials(data)
+
+    async def radio_counter(self, device: Device) -> int:
+        """The last radio transmission counter the box sent for ``device``."""
+        address = RADIO_COUNTERS_ADDRESS + 2 * device.info.device_index
+        data = await self.read_box_memory(device.installation, address, 2)
+        return int.from_bytes(data, "big")
 
     async def sync_box(self, installation: Installation) -> None:
         """Re-send the whole configuration to the box (``DaisyApplication#syncBoard``).
