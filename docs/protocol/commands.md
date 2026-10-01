@@ -142,15 +142,82 @@ the cloud.
 | `DEL_SCEN` | scenario id (decimal) | | `delete_scenario` |
 | `UP_INST_NAME` | installation name | | `rename_installation` |
 | `GET_TIME`, `GET_SIGNAL`, `GET_VERSION`, `GET_INFO`, `GET_DIAGNOSTIC` | — | the box refreshes its status items (`CURRENT_TIME`, `SIGNAL`, `DIAGNOSTIC`…); the ack is `ACK` | `query_box` |
-| `TEST_SCAN` | — | | `test_scan` |
+| `TEST_SCAN` | — | Wi-Fi scan of the box setup screen | `test_scan` |
 | `SYNC_BOARD`, `END_SYNC` | — | frame a full re-send, see [Board sync](#board-sync) | `sync_box` |
 | `SET_TIME` | value (no caller in the app) | | `set_box_time` |
 | `SET_WIFI` | `SSID: x PASS: y` | | `set_wifi` |
 | `AP_CHANNEL_CMD` | `00R` read; write `20W` (static) or `06W` | | `read_ap_channel`, `set_ap_channel` |
-| `MEMORY` | `ADDR: %s NB: %sR` | debug screen | `read_memory` |
-| `UPDATE_BOARD` | firmware URL | flashes the box | `update_firmware` |
+| `MEMORY` | `ADDR: <decimal address> NB: <count, 2 digits>R` | read-only; the answer lands in the box's `DIAGNOSTIC` status item, see [Box memory](#box-memory) | `read_memory` |
+| `UPDATE_BOARD` | firmware links, see [Firmware update](#firmware-update) | flashes the box | `update_firmware` |
 
 Any action can also be sent with `TelecoHub.send_system(installation, action, param)`.
+
+### Box memory
+
+`MEMORY` reads up to 50 bytes. The box writes the answer to its `DIAGNOSTIC` status item
+as space-separated decimal bytes with a leading space (`" 152 8 50"`), or `ERROR`. Over
+the setup access point the same read is `FMEMORY ADDR: %s NB: %sR` (see
+[Local channels](local.md)). There is no write counterpart. Addresses used by the app's
+debug screen:
+
+| Address | Bytes | Content |
+|---|---|---|
+| 273 | 1 | time zone: `0`, `n` = +n h, `100 + n` = −n h |
+| 290 | 6 | daylight saving time rule |
+| 576 | 50 | Wi-Fi name |
+| 640 | 50 | Wi-Fi password |
+| 823, 832 | 7, 7 | latitude, longitude |
+| 842, 876, 910 | 10, 10, 15 | registration, account and virtual ids |
+| 940 | 1 | region: 1 US, 2 EU, 3 Japan, 4 other |
+| 950 | 50 | last Wi-Fi |
+
+The read goes well past these addresses — tens of thousands of bytes answer rather than
+`ERROR`, holding config records (scenarios, timers) then filler and zeros: `MEMORY` maps
+the box's data storage, not its program flash. The box also keeps its 868 MHz radio state
+there; the radio link is documented in
+[radio-teleco](https://github.com/trois-six/radio-teleco).
+
+### Firmware update
+
+**The box updates itself; the app never handles a firmware image.** It only sends one
+`UPDATE_BOARD` command whose parameter is a space-separated list of links, and the box
+downloads and flashes the file on its own (over plain HTTP, from S3). The app triggers
+this when the box's reported version is older than a version hard-coded in the app; the
+one seen is `1.4.0.2` (firmware date 08-03-24).
+
+The parameter carries three link triplets, one per radio variant, so the box picks the
+file that matches its own radio:
+
+```
+L <url> N <file> V <version>  L916 <url> N916 <file> V916<version>  L8686 <url> N8686 <file> V8686<version>
+```
+
+`<version>` is the target with the dots removed (`1.4.0.2` → `1402`). `L*` is the URL,
+`N*` the file name the box saves, `V*` the version. The plain (868 MHz) variant has no
+suffix, `916` is the 916 MHz build, `8686` (file suffix `_P6`) an 868.6/"P6" model.
+
+**Where the images are.** Public Amazon S3 buckets, plain `http`, one set per hardware
+generation and region. HW2 is chosen when the cloud install's `workdays` field looks like
+`x.y.z` (`2.0.0` = HW2); the region defaults from the phone's time zone (EU below +7 h,
+else AU) and can be overridden in the app's advanced-update picker (EU / AU / two-step).
+
+| Set | Bucket | File names (for `1402`) |
+|---|---|---|
+| EU HW1 | `http://tlc-frmw-upd.s3.eu-central-1.amazonaws.com/` | `UPG_1402.gbl`, `UPG_1402_9.gbl`, `UPG_1402_P6.gbl` |
+| EU HW2 | `http://tlc-frmw-upd-hw2.s3.eu-central-1.amazonaws.com/` | `UPG_1402HW2.gbl`, `UPG_1402HW2_9.gbl`, `UPG_1402HW2_P6.gbl` |
+| AU HW1 / HW2 | `…-au.s3.ap-southeast-2.amazonaws.com/` (`tlc-frmw-upd-au`, `tlc-frmw-upd-hw2-au`) | same file names |
+| Two-step ("slim") | EU buckets | an `s` before the suffix: `UPG_1402s.gbl`, `UPG_1402s_9.gbl`, … |
+
+The links are anonymously downloadable (the plain and `_9` files return HTTP 200; some
+variants such as `_P6` are absent, HTTP 403). They are **Silicon Labs Gecko Bootloader
+images** (`.gbl`), so the box is built on an **EFR32-family** SoC. The images are
+**encrypted and signed** (an AES-CTR encryption tag, encrypted program data, an
+ECDSA-P256 signature): they can be downloaded but neither read nor modified.
+
+Progress is reported in the box's `UPDATE_STATUS` status item (`Starting the upgrade...`,
+`Downloading upgrade...`, `Loading upgrade...NN%`, `Applying the upgrade...`,
+`Upgrade completed successfully!`, or an error); the box gives up downloading after about
+6 minutes.
 
 ### Remote controls
 

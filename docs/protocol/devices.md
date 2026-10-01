@@ -48,6 +48,8 @@ seen by the previous version of this library (21 white LED, 22 awning, 23 RGB LE
 
 Models allowed for the Daisy brand (`Utils.COMPATIBLE_DEVICES_ID`): 16–28, 31–34, 43, 44,
 47; sub-models `16: ["1"]`, `44: ["", "1", "2", "3"]`.
+The app's "Memorize" button targets model 16 sub-model 2 and only fires in a
+Gibus-branded build, so it is dead code in the Daisy app.
 
 Device flags (strings `"S"`/`"N"`): `favorite`, `feedback` (the box reports the real
 state; adds the `-F` suffix to the action), `directOnly` (the UI refuses to drive it
