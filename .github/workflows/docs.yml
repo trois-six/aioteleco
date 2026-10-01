@@ -25,6 +25,12 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: false
+      # docs.python.org sometimes answers 503: build without the stdlib cross-links then,
+      # rather than failing the strict build and leaving the previous site online.
+      - name: Drop the Python inventory if docs.python.org is down
+        run: |
+          curl -sSf --retry 3 --retry-all-errors -o /dev/null https://docs.python.org/3/objects.inv \
+            || sed -i '\#https://docs.python.org/3/objects.inv#d' mkdocs.yml
       - name: Build the site
         run: uv run --locked --group docs mkdocs build --strict --site-dir _site
         env:
