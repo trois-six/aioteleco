@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/trois-six/aioteleco/compare/v0.2.0...v0.2.1) (2026-10-10)
+
+
+### Documentation
+
+* **hub:** TEST_SCAN is a Wi-Fi scan, not a radio scan ([6416473](https://github.com/trois-six/aioteleco/commit/6416473ec36a7e88f2fa0f2bac0720fb867ca7e6))
+* **protocol:** document the box memory map and the firmware update flow ([9105487](https://github.com/trois-six/aioteleco/commit/91054874f995a558637f90b1e564664c62c1f779))
+* **readme:** refresh the PyPI badge ([7daff73](https://github.com/trois-six/aioteleco/commit/7daff7368f64fee2fab3eefb6eca9daf8e340f9e))
+
 ## [0.2.0](https://github.com/trois-six/aioteleco/compare/v0.1.0...v0.2.0) (2026-09-24)
 
 
